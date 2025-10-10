@@ -16,11 +16,7 @@ const getSSLConfig = () => {
     return { rejectUnauthorized: false };
   }
   
-  // For cPanel PostgreSQL, try SSL first as it's often required
-  if (process.env.NODE_ENV === 'production') {
-    return { rejectUnauthorized: false };
-  }
-  
+  // Default: No SSL for cPanel PostgreSQL
   return false;
 };
 
