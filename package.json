@@ -13,7 +13,8 @@
     "seed": "ts-node src/database/seed.ts",
     "setup": "setup-postgres.bat",
     "fix-permissions": "fix-permissions.bat",
-    "deploy": "npm run build && npm run migrate && npm run start:prod"
+    "deploy": "npm run build && npm run migrate && npm run start:prod",
+    "test-ssl": "node -e \"const https = require('https'); const options = { hostname: process.env.SSL_TEST_HOST || 'localhost', port: process.env.PORT || 3001, path: '/api/health', method: 'GET', rejectUnauthorized: false }; const req = https.request(options, (res) => { console.log('SSL Test Status:', res.statusCode); res.on('data', (d) => console.log('Response:', d.toString())); }); req.on('error', (e) => console.error('SSL Test Error:', e.message)); req.end();\""
   },
   "keywords": [
     "gfg",
@@ -34,7 +35,9 @@
     "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.2",
-    "pg": "^8.11.3"
+    "pg": "^8.11.3",
+    "https": "^1.0.0",
+    "fs": "^0.0.1-security"
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",

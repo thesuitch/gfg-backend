@@ -47,6 +47,11 @@ if not exist "uploads\tax-documents" (
     mkdir uploads\tax-documents
 )
 
+REM Create SSL directory if it doesn't exist
+if not exist "ssl" (
+    mkdir ssl
+)
+
 echo ✅ Deployment completed successfully!
 echo 🌐 Your API should be available at your configured domain
 echo 🔍 Test the health endpoint: curl https://yourdomain.com/api/health
@@ -54,8 +59,10 @@ echo 🔍 Test the health endpoint: curl https://yourdomain.com/api/health
 echo.
 echo 📋 Next Steps:
 echo 1. Update your .env file with production database credentials
-echo 2. Start your Node.js application in cPanel
-echo 3. Test all API endpoints
-echo 4. Update your frontend to use the production API URL
+echo 2. Set up SSL certificates (see SSL_SETUP_GUIDE.md)
+echo 3. Configure SSL environment variables
+echo 4. Start your Node.js application in cPanel
+echo 5. Test HTTPS endpoints and HTTP redirects
+echo 6. Update your frontend to use the production API URL
 
 pause

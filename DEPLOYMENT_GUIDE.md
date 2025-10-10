@@ -46,6 +46,12 @@ RATE_LIMIT_MAX_REQUESTS=100
 
 # CORS Configuration
 CORS_ORIGIN=https://yourdomain.com
+
+# SSL Configuration (see SSL_SETUP_GUIDE.md for details)
+SSL_KEY_PATH=/path/to/private.key
+SSL_CERT_PATH=/path/to/certificate.crt
+SSL_CA_PATH=/path/to/ca-bundle.crt
+HTTP_PORT=80
 ```
 
 ### 2. Build the Application
@@ -104,11 +110,19 @@ npm run migrate
 npm run seed  # Optional: seed initial data
 ```
 
-### 8. Start Application
+### 8. Set Up SSL (Optional but Recommended)
+
+1. **Follow SSL_SETUP_GUIDE.md** for detailed SSL configuration
+2. **Upload SSL certificates** to `ssl/` directory
+3. **Configure SSL environment variables** in Node.js Selector
+4. **Test HTTPS** functionality
+
+### 9. Start Application
 
 1. **In Node.js Selector**: Click **"Start App"**
 2. **Check logs** for any errors
 3. **Test health endpoint**: `https://yourdomain.com/api/health`
+4. **Test HTTP redirect**: `http://yourdomain.com/api/health` (should redirect to HTTPS)
 
 ## Important Notes
 

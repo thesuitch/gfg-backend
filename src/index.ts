@@ -3,11 +3,14 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
+import https from 'https';
+import http from 'http';
 import { authRoutes } from './routes/auth';
 import { taxDocumentRoutes } from './routes/taxDocuments';
 import { initializeHorseRoutes } from './routes/horses';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from './utils/logger';
+import { createSSLConfig, createHTTPSOptions, redirectToHTTPS } from './utils/ssl';
 import pool from './database/connection';
 
 // Load environment variables
@@ -67,10 +70,43 @@ app.use('*', (req, res) => {
 // Error handling middleware
 app.use(errorHandler);
 
-// Start server
-app.listen(PORT, () => {
-  logger.info(`🚀 GFG Stable Backend running on port ${PORT}`);
-  logger.info(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
-});
+// SSL Configuration
+const sslConfig = createSSLConfig();
+const isProduction = process.env.NODE_ENV === 'production';
+
+// Start server(s)
+if (sslConfig && isProduction) {
+  // Production with SSL
+  const httpsOptions = createHTTPSOptions(sslConfig);
+  const httpsServer = https.createServer(httpsOptions, app);
+  
+  // HTTP server for redirects
+  const httpApp = express();
+  httpApp.use(redirectToHTTPS);
+  const httpServer = http.createServer(httpApp);
+  
+  // Start HTTPS server
+  httpsServer.listen(PORT, () => {
+    logger.info(`🔒 GFG Stable Backend (HTTPS) running on port ${PORT}`);
+    logger.info(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+    logger.info(`🌐 SSL enabled with certificate`);
+  });
+  
+  // Start HTTP server for redirects (port 80)
+  const httpPort = process.env.HTTP_PORT || 80;
+  httpServer.listen(httpPort, () => {
+    logger.info(`🔄 HTTP redirect server running on port ${httpPort}`);
+  });
+  
+} else {
+  // Development or no SSL
+  const server = app.listen(PORT, () => {
+    logger.info(`🚀 GFG Stable Backend running on port ${PORT}`);
+    logger.info(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
+    if (!sslConfig && isProduction) {
+      logger.warn('⚠️ SSL not configured - running in HTTP mode');
+    }
+  });
+}
 
 export default app;
