@@ -159,6 +159,10 @@ router.post('/',
   async (req: Request, res: Response): Promise<void> => {
     try {
       const userId = req.user?.user_id;
+      if (!userId) {
+        res.status(401).json({ error: 'User not authenticated' });
+        return;
+      }
       const horse = await horseService.createHorse(req.body, userId);
       
       res.status(201).json({
@@ -213,6 +217,10 @@ router.put('/:id',
     try {
       const horseId = parseInt(req.params.id);
       const userId = req.user?.user_id;
+      if (!userId) {
+        res.status(401).json({ error: 'User not authenticated' });
+        return;
+      }
       const horse = await horseService.updateHorse(horseId, req.body, userId);
       
       if (!horse) {
@@ -311,6 +319,10 @@ router.post('/:id/purchase',
     try {
       const horseId = parseInt(req.params.id);
       const userId = req.user?.user_id;
+      if (!userId) {
+        res.status(401).json({ error: 'User not authenticated' });
+        return;
+      }
       const ownership = await horseService.purchaseShares(horseId, req.body, userId);
       
       res.status(201).json({
@@ -367,6 +379,10 @@ router.patch('/:id/performance',
     try {
       const horseId = parseInt(req.params.id);
       const userId = req.user?.user_id;
+      if (!userId) {
+        res.status(401).json({ error: 'User not authenticated' });
+        return;
+      }
       const performanceUpdate = await horseService.updatePerformance(horseId, req.body, userId);
       
       res.json({
@@ -400,6 +416,10 @@ router.patch('/:id/financials',
     try {
       const horseId = parseInt(req.params.id);
       const userId = req.user?.user_id;
+      if (!userId) {
+        res.status(401).json({ error: 'User not authenticated' });
+        return;
+      }
       const financialUpdate = await horseService.updateFinancials(horseId, req.body, userId);
       
       res.json({
