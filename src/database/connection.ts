@@ -41,7 +41,10 @@ const dbConfig: PoolConfig = {
 
 // Log database configuration
 logger.info(`Database configuration: ${dbConfig.host}:${dbConfig.port}/${dbConfig.database}`);
+logger.info(`Database user: ${dbConfig.user}`);
 logger.info(`SSL enabled: ${dbConfig.ssl ? 'Yes' : 'No'}`);
+logger.info(`Environment: ${process.env.NODE_ENV}`);
+logger.info(`DB_HOST env: ${process.env.DB_HOST}`);
 
 // Create a new pool instance
 const pool = new Pool(dbConfig);
