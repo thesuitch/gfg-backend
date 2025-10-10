@@ -21,8 +21,15 @@ const getSSLConfig = () => {
   return false;
 };
 
+// Force IPv4 for cPanel PostgreSQL
+const getDatabaseHost = () => {
+  const host = process.env.DB_HOST || '127.0.0.1';
+  // Convert localhost to IPv4 for cPanel compatibility
+  return host === 'localhost' ? '127.0.0.1' : host;
+};
+
 const dbConfig: PoolConfig = {
-  host: process.env.DB_HOST || '127.0.0.1', // Use IPv4 instead of localhost
+  host: getDatabaseHost(), // Force IPv4 for cPanel
   port: parseInt(process.env.DB_PORT || '5432'),
   database: process.env.DB_NAME || 'gfg_stable',
   user: process.env.DB_USER || 'gfg_user',
