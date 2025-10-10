@@ -31,7 +31,7 @@ RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=100
 
 # CORS Configuration
-CORS_ORIGIN=https://yourdomain.com
+CORS_ORIGIN=https://gfgstable.thesuitchstaging2.com
 
 # DO NOT set SSL variables - let cPanel handle SSL
 # SSL_KEY_PATH=
@@ -97,7 +97,7 @@ JWT_SECRET=your-super-secure-jwt-secret
 JWT_EXPIRES_IN=24h
 RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=100
-CORS_ORIGIN=https://yourdomain.com
+CORS_ORIGIN=https://gfgstable.thesuitchstaging2.com
 ```
 
 **Important**: Set `DISABLE_SSL=true` to run production in HTTP mode (like development).
@@ -138,7 +138,7 @@ JWT_SECRET=your-super-secure-jwt-secret
 JWT_EXPIRES_IN=24h
 RATE_LIMIT_WINDOW_MS=900000
 RATE_LIMIT_MAX_REQUESTS=100
-CORS_ORIGIN=https://yourdomain.com
+CORS_ORIGIN=https://gfgstable.thesuitchstaging2.com
 ```
 
 **Important Notes:**

@@ -23,7 +23,7 @@ const PORT = process.env.PORT || 3001;
 app.use(helmet());
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
-    ? process.env.CORS_ORIGIN?.split(',') || ['https://yourdomain.com']
+    ? process.env.CORS_ORIGIN?.split(',') || ['https://gfgstable.thesuitchstaging2.com']
     : ['http://localhost:3000', 'http://localhost:8080'],
   credentials: true
 }));
