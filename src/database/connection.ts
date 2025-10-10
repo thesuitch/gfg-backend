@@ -16,14 +16,10 @@ const getSSLConfig = () => {
     return { rejectUnauthorized: false };
   }
   
-  // Default behavior: SSL only for production with external databases
-  // Most cPanel PostgreSQL instances don't support SSL
+  // For cPanel PostgreSQL, try SSL first, fallback to no SSL
   if (process.env.NODE_ENV === 'production') {
-    // Only use SSL if connecting to external database (not localhost)
-    const host = process.env.DB_HOST || 'localhost';
-    if (host !== 'localhost' && host !== '127.0.0.1') {
-      return { rejectUnauthorized: false };
-    }
+    // Try SSL for production databases
+    return { rejectUnauthorized: false };
   }
   
   return false;
