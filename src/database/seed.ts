@@ -6,6 +6,10 @@ import { logger } from '../utils/logger';
 // Load environment variables
 dotenv.config();
 
+// Log database configuration for debugging
+logger.info(`Seed script - DB_HOST: ${process.env.DB_HOST}`);
+logger.info(`Seed script - NODE_ENV: ${process.env.NODE_ENV}`);
+
 async function seedDatabase() {
   const client = await pool.connect();
   

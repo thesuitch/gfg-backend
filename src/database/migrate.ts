@@ -7,6 +7,10 @@ import { logger } from '../utils/logger';
 // Load environment variables
 dotenv.config();
 
+// Log database configuration for debugging
+logger.info(`Migration script - DB_HOST: ${process.env.DB_HOST}`);
+logger.info(`Migration script - NODE_ENV: ${process.env.NODE_ENV}`);
+
 interface Migration {
   id: number;
   name: string;
