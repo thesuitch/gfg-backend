@@ -80,23 +80,26 @@ if (sslConfig && isProduction) {
   const httpsOptions = createHTTPSOptions(sslConfig);
   const httpsServer = https.createServer(httpsOptions, app);
   
-  // HTTP server for redirects
-  const httpApp = express();
-  httpApp.use(redirectToHTTPS);
-  const httpServer = http.createServer(httpApp);
-  
-  // Start HTTPS server
+  // Start HTTPS server on configured port
   httpsServer.listen(PORT, () => {
     logger.info(`🔒 GFG Stable Backend (HTTPS) running on port ${PORT}`);
     logger.info(`📊 Environment: ${process.env.NODE_ENV || 'development'}`);
     logger.info(`🌐 SSL enabled with certificate`);
   });
   
-  // Start HTTP server for redirects (port 80)
-  const httpPort = process.env.HTTP_PORT || 80;
-  httpServer.listen(httpPort, () => {
-    logger.info(`🔄 HTTP redirect server running on port ${httpPort}`);
-  });
+  // Only start HTTP redirect server if HTTP_PORT is explicitly set and different from main port
+  const httpPort = process.env.HTTP_PORT;
+  if (httpPort && parseInt(httpPort) !== PORT) {
+    const httpApp = express();
+    httpApp.use(redirectToHTTPS);
+    const httpServer = http.createServer(httpApp);
+    
+    httpServer.listen(httpPort, () => {
+      logger.info(`🔄 HTTP redirect server running on port ${httpPort}`);
+    });
+  } else {
+    logger.info(`ℹ️ HTTP redirect server disabled - cPanel will handle HTTPS redirect`);
+  }
   
 } else {
   // Development or no SSL
