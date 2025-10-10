@@ -20,11 +20,11 @@ const getSSLConfig = () => {
   return false;
 };
 
-// Use localhost for all database connections
+// Force IPv4 for all database connections to avoid IPv6 issues
 const getDatabaseHost = () => {
   const host = process.env.DB_HOST || 'localhost';
-  // Keep localhost as is for consistency
-  return host;
+  // Convert localhost to IPv4 to avoid IPv6 resolution issues
+  return host === 'localhost' ? '127.0.0.1' : host;
 };
 
 const dbConfig: PoolConfig = {
