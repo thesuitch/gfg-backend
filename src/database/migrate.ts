@@ -1,7 +1,11 @@
 import fs from 'fs';
 import path from 'path';
+import dotenv from 'dotenv';
 import pool from './connection';
 import { logger } from '../utils/logger';
+
+// Load environment variables
+dotenv.config();
 
 interface Migration {
   id: number;

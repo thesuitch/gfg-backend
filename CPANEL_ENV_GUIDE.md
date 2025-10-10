@@ -15,12 +15,12 @@ NODE_ENV=production
 PORT=8762
 
 # Database Configuration
-DB_HOST=localhost
+DB_HOST=127.0.0.1
 DB_PORT=5432
 DB_NAME=gfg_stable_prod
 DB_USER=your_database_user
 DB_PASSWORD=your_secure_password
-DB_SSL=true
+DB_SSL=false
 
 # JWT Configuration
 JWT_SECRET=your-super-secure-jwt-secret-key-for-production
@@ -87,11 +87,11 @@ In Node.js Selector → Environment Variables, add:
 ```
 NODE_ENV=production
 PORT=8762
-DB_HOST=localhost
+DB_HOST=127.0.0.1
 DB_NAME=gfg_stable_prod
 DB_USER=your_database_user
 DB_PASSWORD=your_secure_password
-DB_SSL=true
+DB_SSL=false
 DISABLE_SSL=true
 JWT_SECRET=your-super-secure-jwt-secret
 JWT_EXPIRES_IN=24h
@@ -129,11 +129,11 @@ For most cPanel hosting, use this configuration:
 ```env
 NODE_ENV=production
 PORT=8762
-DB_HOST=localhost
+DB_HOST=127.0.0.1
 DB_NAME=gfg_stable_prod
 DB_USER=your_database_user
 DB_PASSWORD=your_secure_password
-DB_SSL=true
+DB_SSL=false
 JWT_SECRET=your-super-secure-jwt-secret
 JWT_EXPIRES_IN=24h
 RATE_LIMIT_WINDOW_MS=900000
@@ -143,5 +143,5 @@ CORS_ORIGIN=https://gfgstable.thesuitchstaging2.com
 
 **Important Notes:**
 - **Don't set any SSL_* variables** - let cPanel handle SSL at the server level
-- **Set DB_SSL=true** - most cPanel PostgreSQL instances don't support SSL
+- **Set DB_SSL=false** - most cPanel PostgreSQL instances don't support SSL
 - **Use localhost for DB_HOST** - cPanel databases are typically local

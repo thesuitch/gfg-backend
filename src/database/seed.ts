@@ -1,6 +1,10 @@
+import dotenv from 'dotenv';
 import pool from './connection';
 import { hashPassword } from '../utils/jwt';
 import { logger } from '../utils/logger';
+
+// Load environment variables
+dotenv.config();
 
 async function seedDatabase() {
   const client = await pool.connect();
