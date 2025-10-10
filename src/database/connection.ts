@@ -4,6 +4,31 @@ import { logger } from '../utils/logger';
 
 dotenv.config();
 
+// SSL configuration for database
+const getSSLConfig = () => {
+  // If DB_SSL is explicitly set to false, disable SSL
+  if (process.env.DB_SSL === 'false') {
+    return false;
+  }
+  
+  // If DB_SSL is explicitly set to true, enable SSL
+  if (process.env.DB_SSL === 'true') {
+    return { rejectUnauthorized: false };
+  }
+  
+  // Default behavior: SSL only for production with external databases
+  // Most cPanel PostgreSQL instances don't support SSL
+  if (process.env.NODE_ENV === 'production') {
+    // Only use SSL if connecting to external database (not localhost)
+    const host = process.env.DB_HOST || 'localhost';
+    if (host !== 'localhost' && host !== '127.0.0.1') {
+      return { rejectUnauthorized: false };
+    }
+  }
+  
+  return false;
+};
+
 const dbConfig: PoolConfig = {
   host: process.env.DB_HOST || 'localhost',
   port: parseInt(process.env.DB_PORT || '5432'),
@@ -13,8 +38,12 @@ const dbConfig: PoolConfig = {
   max: 20, // Maximum number of clients in the pool
   idleTimeoutMillis: 30000, // Close idle clients after 30 seconds
   connectionTimeoutMillis: 2000, // Return an error after 2 seconds if connection could not be established
-  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+  ssl: getSSLConfig()
 };
+
+// Log database configuration
+logger.info(`Database configuration: ${dbConfig.host}:${dbConfig.port}/${dbConfig.database}`);
+logger.info(`SSL enabled: ${dbConfig.ssl ? 'Yes' : 'No'}`);
 
 // Create a new pool instance
 const pool = new Pool(dbConfig);

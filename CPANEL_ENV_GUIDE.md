@@ -15,11 +15,12 @@ NODE_ENV=production
 PORT=8762
 
 # Database Configuration
-DB_HOST=your-cpanel-postgres-host
+DB_HOST=localhost
 DB_PORT=5432
 DB_NAME=gfg_stable_prod
 DB_USER=your_database_user
 DB_PASSWORD=your_secure_password
+DB_SSL=false
 
 # JWT Configuration
 JWT_SECRET=your-super-secure-jwt-secret-key-for-production
@@ -90,9 +91,16 @@ DB_HOST=localhost
 DB_NAME=gfg_stable_prod
 DB_USER=your_database_user
 DB_PASSWORD=your_secure_password
+DB_SSL=false
+DISABLE_SSL=true
 JWT_SECRET=your-super-secure-jwt-secret
+JWT_EXPIRES_IN=24h
+RATE_LIMIT_WINDOW_MS=900000
+RATE_LIMIT_MAX_REQUESTS=100
 CORS_ORIGIN=https://yourdomain.com
 ```
+
+**Important**: Set `DISABLE_SSL=true` to run production in HTTP mode (like development).
 
 ## Testing Your Configuration
 
@@ -125,6 +133,7 @@ DB_HOST=localhost
 DB_NAME=gfg_stable_prod
 DB_USER=your_database_user
 DB_PASSWORD=your_secure_password
+DB_SSL=false
 JWT_SECRET=your-super-secure-jwt-secret
 JWT_EXPIRES_IN=24h
 RATE_LIMIT_WINDOW_MS=900000
@@ -132,4 +141,7 @@ RATE_LIMIT_MAX_REQUESTS=100
 CORS_ORIGIN=https://yourdomain.com
 ```
 
-**Don't set any SSL_* variables** - let cPanel handle SSL at the server level.
+**Important Notes:**
+- **Don't set any SSL_* variables** - let cPanel handle SSL at the server level
+- **Set DB_SSL=false** - most cPanel PostgreSQL instances don't support SSL
+- **Use localhost for DB_HOST** - cPanel databases are typically local

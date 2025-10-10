@@ -73,9 +73,18 @@ app.use(errorHandler);
 // SSL Configuration
 const sslConfig = createSSLConfig();
 const isProduction = process.env.NODE_ENV === 'production';
+const forceSSL = process.env.FORCE_SSL === 'true';
+const disableSSL = process.env.DISABLE_SSL === 'true';
+
+// Log configuration
+logger.info(`Environment: ${process.env.NODE_ENV || 'development'}`);
+logger.info(`Port: ${PORT}`);
+logger.info(`SSL Config Found: ${sslConfig ? 'Yes' : 'No'}`);
+logger.info(`Force SSL: ${forceSSL}`);
+logger.info(`Disable SSL: ${disableSSL}`);
 
 // Start server(s)
-if (sslConfig && isProduction) {
+if (sslConfig && (isProduction || forceSSL) && !disableSSL) {
   // Production with SSL
   const httpsOptions = createHTTPSOptions(sslConfig);
   const httpsServer = https.createServer(httpsOptions, app);
