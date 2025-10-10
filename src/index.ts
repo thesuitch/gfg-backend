@@ -5,8 +5,10 @@ import rateLimit from 'express-rate-limit';
 import dotenv from 'dotenv';
 import { authRoutes } from './routes/auth';
 import { taxDocumentRoutes } from './routes/taxDocuments';
+import { initializeHorseRoutes } from './routes/horses';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from './utils/logger';
+import pool from './database/connection';
 
 // Load environment variables
 dotenv.config();
@@ -18,7 +20,7 @@ const PORT = process.env.PORT || 3001;
 app.use(helmet());
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
-    ? ['https://yourdomain.com'] 
+    ? process.env.CORS_ORIGIN?.split(',') || ['https://yourdomain.com']
     : ['http://localhost:3000', 'http://localhost:8080'],
   credentials: true
 }));
@@ -50,9 +52,12 @@ app.get('/health', (req, res) => {
   });
 });
 
+// Database connection is already initialized in the import
+
 // API routes
 app.use('/api/auth', authRoutes);
 app.use('/api/tax-documents', taxDocumentRoutes);
+app.use('/api/horses', initializeHorseRoutes(pool));
 
 // 404 handler
 app.use('*', (req, res) => {

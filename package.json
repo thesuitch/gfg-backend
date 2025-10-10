@@ -6,12 +6,14 @@
   "scripts": {
     "build": "tsc",
     "start": "node dist/index.js",
+    "start:prod": "NODE_ENV=production node dist/index.js",
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "migrate": "ts-node src/database/migrate.ts",
     "migrate:create": "ts-node src/database/create-migration.ts",
     "seed": "ts-node src/database/seed.ts",
     "setup": "setup-postgres.bat",
-    "fix-permissions": "fix-permissions.bat"
+    "fix-permissions": "fix-permissions.bat",
+    "deploy": "npm run build && npm run migrate && npm run start:prod"
   },
   "keywords": [
     "gfg",
