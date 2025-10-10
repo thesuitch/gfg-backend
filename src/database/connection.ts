@@ -16,8 +16,11 @@ const getSSLConfig = () => {
     return { rejectUnauthorized: false };
   }
   
-  // Default behavior: No SSL for cPanel PostgreSQL
-  // Most cPanel PostgreSQL instances don't support SSL
+  // For cPanel PostgreSQL, try SSL first as it's often required
+  if (process.env.NODE_ENV === 'production') {
+    return { rejectUnauthorized: false };
+  }
+  
   return false;
 };
 

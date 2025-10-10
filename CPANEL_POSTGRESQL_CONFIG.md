@@ -24,7 +24,7 @@ DB_PORT=5432
 DB_NAME=gfgstablethesuit_db
 DB_USER=gfgstablethesuit_user
 DB_PASSWORD=your_database_password
-DB_SSL=false
+DB_SSL=true
 
 # SSL Configuration - Disabled for HTTP mode
 DISABLE_SSL=true
@@ -43,7 +43,7 @@ CORS_ORIGIN=https://gfgstable.thesuitchstaging2.com
 
 ## Key Points
 
-1. **`DB_SSL=false`** - Disables SSL for database connection
+1. **`DB_SSL=true`** - Disables SSL for database connection
 2. **`DB_HOST=127.0.0.1`** - Uses localhost for cPanel database
 3. **`DB_PORT=5432`** - Standard PostgreSQL port
 4. **`DISABLE_SSL=true`** - Disables SSL for the application server
@@ -75,7 +75,7 @@ CORS_ORIGIN=https://gfgstable.thesuitchstaging2.com
 
 ### Issue: SSL Not Supported
 **Error**: "The server does not support SSL connections"
-**Solution**: Set `DB_SSL=false`
+**Solution**: Set `DB_SSL=true`
 
 ### Issue: Database Not Found
 **Error**: "database does not exist"
@@ -91,7 +91,7 @@ CORS_ORIGIN=https://gfgstable.thesuitchstaging2.com
 
 ## Quick Fix Steps
 
-1. **Set `DB_SSL=false`** in cPanel environment variables
+1. **Set `DB_SSL=true`** in cPanel environment variables
 2. **Verify database credentials** in cPanel
 3. **Restart Node.js app** in cPanel
 4. **Test with**: `npm run seed`
