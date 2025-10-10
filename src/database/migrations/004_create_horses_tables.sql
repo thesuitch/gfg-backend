@@ -154,35 +154,4 @@ CREATE TRIGGER update_shares_on_ownership_change
   AFTER INSERT OR UPDATE OR DELETE ON horse_ownership
   FOR EACH ROW EXECUTE FUNCTION update_horse_shares_remaining();
 
--- Insert some sample horses for testing
-INSERT INTO horses (
-  name, sire, dam, sex, age, age_category, gait, status, horse_type, 
-  jurisdiction, trainer, stable_location, purchase_date, purchase_price, 
-  current_value, price_per_percent, initial_shares, current_shares, 
-  shares_remaining, wins, places, shows, races, earnings, description,
-  created_by, updated_by
-) VALUES 
-(
-  'Thunder Strike', 'Lightning Bolt', 'Storm Queen', 'colt', 3, '3YO', 
-  'trotter', 'new', 'standardbred', ARRAY['NY', 'PA'], 'John Smith', 
-  'Saratoga Stables', '2024-01-15', 50000.00, 55000.00, 500.00, 
-  100, 100, 100, 2, 1, 0, 3, 15000.00, 
-  'A promising young trotter with excellent breeding.',
-  1, 1
-),
-(
-  'Wind Runner', 'Speed Demon', 'Breeze Lady', 'filly', 2, '2YO', 
-  'pacer', 'new', 'standardbred', ARRAY['CA', 'NV'], 'Sarah Johnson', 
-  'Golden Gate Stables', '2024-02-20', 35000.00, 38000.00, 350.00, 
-  100, 100, 100, 1, 0, 1, 2, 8500.00, 
-  'Fast filly showing great potential in early races.',
-  1, 1
-),
-(
-  'Midnight Express', 'Dark Knight', 'Night Star', 'gelding', 4, '4YO', 
-  'trotter', 'old', 'standardbred', ARRAY['KY', 'TN'], 'Mike Wilson', 
-  'Bluegrass Stables', '2023-06-10', 75000.00, 82000.00, 750.00, 
-  100, 100, 100, 5, 3, 2, 12, 45000.00, 
-  'Experienced trotter with consistent performance record.',
-  1, 1
-);
+-- Sample horses will be inserted via seed script after users are created
