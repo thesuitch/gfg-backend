@@ -21,6 +21,10 @@ const validateLogin = [
   body('password').notEmpty().withMessage('Password is required')
 ];
 
+const validateForgotPassword = [
+  body('email').isEmail().normalizeEmail().withMessage('Valid email is required')
+];
+
 const validateProfileUpdate = [
   body('first_name').optional().trim().isLength({ min: 1 }).withMessage('First name must not be empty'),
   body('last_name').optional().trim().isLength({ min: 1 }).withMessage('Last name must not be empty'),
@@ -80,6 +84,19 @@ router.post('/login',
     res.json({
       message: 'Login successful',
       data: result
+    });
+  })
+);
+
+// POST /api/auth/forgot-password
+router.post('/forgot-password',
+  validateForgotPassword,
+  handleValidationErrors,
+  asyncHandler(async (req: Request, res: Response) => {
+    await authService.forgotPassword(req.body.email);
+    // Always return success to prevent email enumeration
+    res.json({
+      message: 'If an account exists with this email, you will receive password reset instructions.'
     });
   })
 );

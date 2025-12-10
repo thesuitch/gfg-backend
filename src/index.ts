@@ -24,7 +24,7 @@ app.use(helmet());
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
     ? process.env.CORS_ORIGIN?.split(',') || ['https://gfgstable.thesuitchstaging2.com']
-    : ['http://localhost:3000', 'http://localhost:8080'],
+    : ['http://localhost:3001', 'http://localhost:8080'],
   credentials: true
 }));
 

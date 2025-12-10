@@ -3,6 +3,8 @@ import { hashPassword, comparePassword, generateToken, generateTokenHash } from 
 import { User, UserWithPassword, LoginRequest, RegisterRequest, UpdateProfileRequest, AuthResponse, UserRole } from '../types/auth';
 import { createError } from '../middleware/errorHandler';
 import { logger } from '../utils/logger';
+import { sendRegistrationNotification, sendPasswordResetEmail } from '../utils/email';
+import crypto from 'crypto';
 
 export class AuthService {
   async register(userData: RegisterRequest): Promise<AuthResponse> {
@@ -69,6 +71,22 @@ export class AuthService {
       `, [user.id, tokenHash, expiresAt]);
 
       logger.info(`User registered successfully: ${user.email}`);
+
+      // Send registration notification email to admin
+      try {
+        await sendRegistrationNotification({
+          email: user.email,
+          first_name: user.first_name,
+          last_name: user.last_name,
+          phone: user.phone || undefined,
+          country: user.country || undefined,
+          city: user.city || undefined,
+          state: user.state || undefined
+        });
+      } catch (emailError) {
+        // Log error but don't fail registration
+        logger.error('Failed to send registration notification email:', emailError);
+      }
 
       return {
         user: userWithRole,
@@ -471,6 +489,70 @@ export class AuthService {
       );
 
       logger.info(`User deactivated: ${userId}`);
+    } finally {
+      client.release();
+    }
+  }
+
+  async forgotPassword(email: string): Promise<void> {
+    const client = await pool.connect();
+    
+    try {
+      // Check if user exists
+      const result = await client.query(
+        'SELECT id, email, first_name, last_name FROM users WHERE email = $1 AND is_active = true',
+        [email]
+      );
+
+      // Always return success to prevent email enumeration
+      // But only send email if user exists
+      if (result.rows.length > 0) {
+        const user = result.rows[0];
+        
+        // Generate reset token
+        const resetToken = crypto.randomBytes(32).toString('hex');
+        const tokenHash = crypto.createHash('sha256').update(resetToken).digest('hex');
+        
+        // Store reset token (expires in 1 hour)
+        const expiresAt = new Date();
+        expiresAt.setHours(expiresAt.getHours() + 1);
+        
+        // Check if password_reset_tokens table exists, if not create it
+        await client.query(`
+          CREATE TABLE IF NOT EXISTS password_reset_tokens (
+            id SERIAL PRIMARY KEY,
+            user_id INTEGER NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+            token_hash VARCHAR(255) NOT NULL,
+            expires_at TIMESTAMP NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            used BOOLEAN DEFAULT FALSE
+          )
+        `);
+        
+        // Invalidate any existing reset tokens for this user
+        await client.query(
+          'UPDATE password_reset_tokens SET used = true WHERE user_id = $1 AND used = false',
+          [user.id]
+        );
+        
+        // Insert new reset token
+        await client.query(
+          'INSERT INTO password_reset_tokens (user_id, token_hash, expires_at) VALUES ($1, $2, $3)',
+          [user.id, tokenHash, expiresAt]
+        );
+        
+        // Send password reset email
+        try {
+          await sendPasswordResetEmail(user.email, resetToken);
+          logger.info(`Password reset email sent to: ${user.email}`);
+        } catch (emailError) {
+          logger.error('Failed to send password reset email:', emailError);
+          // Don't throw error, just log it
+        }
+      } else {
+        // Log attempt for non-existent user (for security monitoring)
+        logger.warn(`Password reset requested for non-existent email: ${email}`);
+      }
     } finally {
       client.release();
     }
