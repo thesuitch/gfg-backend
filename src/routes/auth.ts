@@ -25,6 +25,11 @@ const validateForgotPassword = [
   body('email').isEmail().normalizeEmail().withMessage('Valid email is required')
 ];
 
+const validateResetPassword = [
+  body('token').notEmpty().withMessage('Reset token is required'),
+  body('password').isLength({ min: 8 }).withMessage('Password must be at least 8 characters long')
+];
+
 const validateProfileUpdate = [
   body('first_name').optional().trim().isLength({ min: 1 }).withMessage('First name must not be empty'),
   body('last_name').optional().trim().isLength({ min: 1 }).withMessage('Last name must not be empty'),
@@ -97,6 +102,18 @@ router.post('/forgot-password',
     // Always return success to prevent email enumeration
     res.json({
       message: 'If an account exists with this email, you will receive password reset instructions.'
+    });
+  })
+);
+
+// POST /api/auth/reset-password
+router.post('/reset-password',
+  validateResetPassword,
+  handleValidationErrors,
+  asyncHandler(async (req: Request, res: Response) => {
+    await authService.resetPassword(req.body.token, req.body.password);
+    res.json({
+      message: 'Password reset successfully. You can now login with your new password.'
     });
   })
 );

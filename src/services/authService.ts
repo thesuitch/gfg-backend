@@ -557,6 +557,60 @@ export class AuthService {
       client.release();
     }
   }
+
+  async resetPassword(token: string, newPassword: string): Promise<void> {
+    const client = await pool.connect();
+    
+    try {
+      // Hash the token to compare with stored hash
+      const tokenHash = crypto.createHash('sha256').update(token).digest('hex');
+      
+      // Find valid reset token
+      const tokenResult = await client.query(
+        `SELECT prt.user_id, prt.expires_at, prt.used
+         FROM password_reset_tokens prt
+         WHERE prt.token_hash = $1 
+         AND prt.used = false 
+         AND prt.expires_at > NOW()`,
+        [tokenHash]
+      );
+
+      if (tokenResult.rows.length === 0) {
+        throw createError('Invalid or expired reset token', 400);
+      }
+
+      const resetToken = tokenResult.rows[0];
+      
+      // Check if token is expired
+      if (new Date(resetToken.expires_at) < new Date()) {
+        throw createError('Reset token has expired', 400);
+      }
+
+      // Check if token is already used
+      if (resetToken.used) {
+        throw createError('Reset token has already been used', 400);
+      }
+
+      // Hash the new password
+      const passwordHash = await hashPassword(newPassword);
+
+      // Update user password
+      await client.query(
+        'UPDATE users SET password_hash = $1, updated_at = NOW() WHERE id = $2',
+        [passwordHash, resetToken.user_id]
+      );
+
+      // Mark token as used
+      await client.query(
+        'UPDATE password_reset_tokens SET used = true WHERE token_hash = $1',
+        [tokenHash]
+      );
+
+      logger.info(`Password reset successful for user ID: ${resetToken.user_id}`);
+    } finally {
+      client.release();
+    }
+  }
 }
 
 export const authService = new AuthService();
