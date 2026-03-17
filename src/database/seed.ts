@@ -2,6 +2,7 @@ import dotenv from 'dotenv';
 import pool from './connection';
 import { hashPassword } from '../utils/jwt';
 import { logger } from '../utils/logger';
+import { seedTransactionCategories } from './seedTransactionCategories';
 
 // Load environment variables
 dotenv.config();
@@ -15,6 +16,9 @@ async function seedDatabase() {
   
   try {
     logger.info('🌱 Starting database seeding...');
+
+    // Seed transaction categories (idempotent; safe to run every time)
+    await seedTransactionCategories(client);
 
     // Check if admin user already exists
     const existingAdmin = await client.query(

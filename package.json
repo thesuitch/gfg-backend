@@ -11,6 +11,7 @@
     "migrate": "ts-node -r dotenv/config src/database/migrate.ts",
     "migrate:create": "ts-node -r dotenv/config src/database/create-migration.ts",
     "seed": "ts-node -r dotenv/config src/database/seed.ts",
+    "seed:categories": "ts-node -r dotenv/config src/database/seedCategoriesOnly.ts",
     "setup": "setup-postgres.bat",
     "fix-permissions": "fix-permissions.bat",
     "deploy": "npm run build && npm run migrate && npm run start:prod",
