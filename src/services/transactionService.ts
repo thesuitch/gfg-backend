@@ -4,6 +4,7 @@ import {
   HorseRevenueExpenseItem,
   TransactionFilters,
   AddTransactionItem,
+  UpdateTransactionInput,
   CreateCategoryInput,
   UpdateCategoryInput,
 } from '../types/transaction';
@@ -12,21 +13,39 @@ import { logger } from '../utils/logger';
 function categoryRowMap(row: any): TransactionCategory {
   const allowsNegative = row.allowsNegative ?? row.allows_negative ?? false;
   const signage = row.signage ?? (allowsNegative ? 'both' : 'positive');
+  const rawDesc = row.description;
+  const description =
+    rawDesc === undefined || rawDesc === null
+      ? null
+      : String(rawDesc).trim() === ''
+        ? null
+        : String(rawDesc).trim();
   return {
     id: row.id,
     name: row.name,
     type: row.type,
     group: row.groupName ?? row.group_name,
     allowsNegative,
-    description: row.description ?? null,
+    description,
     isCore: row.isCore ?? row.is_core ?? false,
     signage: signage as 'positive' | 'negative' | 'both',
   };
 }
 
+/** Persist null for empty/whitespace; undefined means caller did not supply (updates only). */
+function normalizeDescriptionForCreate(input: string | undefined): string | null {
+  if (input === undefined || input === null) return null;
+  const t = String(input).trim();
+  return t.length ? t : null;
+}
+
 const CATEGORIES_SELECT_MINIMAL = `SELECT id, name, type, group_name as "groupName", allows_negative as "allowsNegative"
  FROM transaction_categories ORDER BY sort_order, id`;
+/** Full row: use when migrations 006 + 007 are applied */
 const CATEGORIES_SELECT_FULL = `SELECT id, name, type, group_name as "groupName", allows_negative as "allowsNegative", description, is_core as "isCore", signage
+ FROM transaction_categories ORDER BY sort_order, id`;
+/** 006 applied, 007 not: description + is_core exist, signage column missing */
+const CATEGORIES_SELECT_NO_SIGNAGE = `SELECT id, name, type, group_name as "groupName", allows_negative as "allowsNegative", description, is_core as "isCore"
  FROM transaction_categories ORDER BY sort_order, id`;
 
 export class TransactionService {
@@ -36,17 +55,23 @@ export class TransactionService {
     this.pool = pool;
   }
 
+  /**
+   * Try SELECTs in order. If `signage` is missing we must not fall back to MINIMAL
+   * (that drops `description` even when column exists).
+   */
   async getCategories(): Promise<TransactionCategory[]> {
-    try {
-      const result = await this.pool.query(CATEGORIES_SELECT_FULL);
-      return result.rows.map((row: any) => categoryRowMap(row));
-    } catch (err: any) {
-      if (err?.code === '42703') {
-        const result = await this.pool.query(CATEGORIES_SELECT_MINIMAL);
+    const attempts = [CATEGORIES_SELECT_FULL, CATEGORIES_SELECT_NO_SIGNAGE, CATEGORIES_SELECT_MINIMAL];
+    let lastErr: unknown;
+    for (const sql of attempts) {
+      try {
+        const result = await this.pool.query(sql);
         return result.rows.map((row: any) => categoryRowMap(row));
+      } catch (err: any) {
+        lastErr = err;
+        if (err?.code !== '42703') throw err;
       }
-      throw err;
     }
+    throw lastErr instanceof Error ? lastErr : new Error('Failed to load transaction categories');
   }
 
   async createCategory(input: CreateCategoryInput): Promise<TransactionCategory> {
@@ -58,6 +83,7 @@ export class TransactionService {
 
     const signage = input.signage ?? (input.allowsNegative ? 'both' : 'positive');
     const allowsNegative = signage === 'both' || signage === 'negative';
+    const descriptionValue = normalizeDescriptionForCreate(input.description);
 
     try {
       const result = await this.pool.query(
@@ -71,7 +97,7 @@ export class TransactionService {
           groupName,
           allowsNegative,
           sortOrder,
-          input.description ?? null,
+          descriptionValue,
           signage,
         ]
       );
@@ -107,7 +133,8 @@ export class TransactionService {
     }
     if (input.description !== undefined) {
       updates.push(`description = $${paramIndex++}`);
-      values.push(input.description || null);
+      const d = input.description;
+      values.push(d === null ? null : String(d).trim() === '' ? null : String(d).trim());
     }
     if (input.signage !== undefined) {
       updates.push(`signage = $${paramIndex++}`);
@@ -168,26 +195,26 @@ export class TransactionService {
   }
 
   async getCategoryById(id: string): Promise<TransactionCategory | null> {
-    try {
-      const result = await this.pool.query(
-        `SELECT id, name, type, group_name as "groupName", allows_negative as "allowsNegative", description, is_core as "isCore", signage
-         FROM transaction_categories WHERE id = $1`,
-        [id]
-      );
-      if (result.rows.length === 0) return null;
-      return categoryRowMap(result.rows[0]);
-    } catch (err: any) {
-      if (err?.code === '42703') {
-        const result = await this.pool.query(
-          `SELECT id, name, type, group_name as "groupName", allows_negative as "allowsNegative"
-           FROM transaction_categories WHERE id = $1`,
-          [id]
-        );
+    const attempts = [
+      `SELECT id, name, type, group_name as "groupName", allows_negative as "allowsNegative", description, is_core as "isCore", signage
+       FROM transaction_categories WHERE id = $1`,
+      `SELECT id, name, type, group_name as "groupName", allows_negative as "allowsNegative", description, is_core as "isCore"
+       FROM transaction_categories WHERE id = $1`,
+      `SELECT id, name, type, group_name as "groupName", allows_negative as "allowsNegative"
+       FROM transaction_categories WHERE id = $1`,
+    ];
+    let lastErr: unknown;
+    for (const sql of attempts) {
+      try {
+        const result = await this.pool.query(sql, [id]);
         if (result.rows.length === 0) return null;
         return categoryRowMap(result.rows[0]);
+      } catch (err: any) {
+        lastErr = err;
+        if (err?.code !== '42703') throw err;
       }
-      throw err;
     }
+    throw lastErr instanceof Error ? lastErr : new Error('Failed to load category');
   }
 
   async deleteCategory(id: string): Promise<boolean> {
@@ -326,6 +353,65 @@ export class TransactionService {
         });
       }
       return inserted;
+    } finally {
+      client.release();
+    }
+  }
+
+  async deleteTransaction(id: number): Promise<boolean> {
+    const result = await this.pool.query(
+      'DELETE FROM horse_revenue_expense WHERE id = $1 RETURNING id',
+      [id]
+    );
+    return result.rowCount !== null && result.rowCount > 0;
+  }
+
+  async updateTransaction(
+    id: number,
+    input: UpdateTransactionInput
+  ): Promise<HorseRevenueExpenseItem | null> {
+    const client = await this.pool.connect();
+    try {
+      const catResult = await client.query(
+        'SELECT name, type, group_name FROM transaction_categories WHERE id = $1',
+        [input.categoryId]
+      );
+      if (catResult.rows.length === 0) {
+        throw new Error(`Invalid category_id: ${input.categoryId}`);
+      }
+      const cat = catResult.rows[0];
+
+      const horseResult = await client.query('SELECT name FROM horses WHERE id = $1', [input.horseId]);
+      if (horseResult.rows.length === 0) {
+        throw new Error(`Invalid horse_id: ${input.horseId}`);
+      }
+      const horseName = horseResult.rows[0].name;
+
+      const updateResult = await client.query(
+        `UPDATE horse_revenue_expense
+         SET horse_id = $1, category_id = $2, transaction_date = $3::date, amount = $4, notes = $5
+         WHERE id = $6
+         RETURNING id, transaction_date, horse_id, category_id, amount, notes`,
+        [input.horseId, input.categoryId, input.date, input.amount, input.notes ?? '', id]
+      );
+      if (updateResult.rows.length === 0) return null;
+
+      const row = updateResult.rows[0];
+      return {
+        id: String(row.id),
+        date:
+          row.transaction_date instanceof Date
+            ? row.transaction_date.toISOString().slice(0, 10)
+            : String(row.transaction_date).slice(0, 10),
+        horseId: String(row.horse_id),
+        horseName,
+        categoryId: row.category_id,
+        categoryName: cat.name,
+        categoryType: cat.type,
+        categoryGroup: cat.group_name,
+        amount: parseFloat(row.amount),
+        notes: row.notes || '',
+      };
     } finally {
       client.release();
     }

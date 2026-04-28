@@ -1,5 +1,5 @@
 import { Router, Request, Response, NextFunction } from 'express';
-import { query, body, validationResult } from 'express-validator';
+import { query, body, param, validationResult } from 'express-validator';
 import { TransactionService } from '../services/transactionService';
 import { authenticateToken } from '../middleware/auth';
 import { requireAdmin } from '../middleware/auth';
@@ -57,7 +57,7 @@ router.post(
     body('id').isString().trim().notEmpty().withMessage('id is required'),
     body('name').isString().trim().notEmpty().withMessage('name is required'),
     body('type').isIn(['revenue', 'expense', 'adjustment']).withMessage('type must be revenue, expense, or adjustment'),
-    body('description').optional().isString().trim(),
+    body('description').optional().trim().isString().isLength({ max: 10000 }),
     body('allowsNegative').optional().isBoolean(),
     body('signage').optional().isIn(['positive', 'negative', 'both']),
   ],
@@ -98,9 +98,9 @@ router.put(
   authenticateToken,
   requireAdmin,
   [
-    body('name').optional().isString().trim().notEmpty(),
+    body('name').optional().trim().isString().notEmpty(),
     body('type').optional().isIn(['revenue', 'expense', 'adjustment']),
-    body('description').optional().isString().trim(),
+    body('description').optional().trim().isString().isLength({ max: 10000 }),
     body('allowsNegative').optional().isBoolean(),
     body('signage').optional().isIn(['positive', 'negative', 'both']),
   ],
@@ -258,6 +258,85 @@ router.post(
       res.status(500).json({
         success: false,
         error: error?.message || 'Failed to add transactions',
+      });
+    }
+  }
+);
+
+// PUT /api/transactions/:id - update one horse revenue/expense line (admin)
+router.put(
+  '/:id',
+  authenticateToken,
+  requireAdmin,
+  [
+    param('id').isInt({ min: 1 }).withMessage('id must be a positive integer'),
+    body('horseId').isInt({ min: 1 }).withMessage('horseId is required'),
+    body('categoryId').isString().trim().notEmpty().withMessage('categoryId is required'),
+    body('date').isString().trim().notEmpty().withMessage('date is required'),
+    body('amount').isFloat().withMessage('amount must be a number'),
+    body('notes').optional().isString().trim(),
+  ],
+  handleValidation,
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const { horseId, categoryId, date, amount, notes } = req.body as {
+        horseId: number;
+        categoryId: string;
+        date: string;
+        amount: number;
+        notes?: string;
+      };
+
+      const updated = await transactionService.updateTransaction(id, {
+        horseId,
+        categoryId,
+        date: date.slice(0, 10),
+        amount,
+        notes,
+      });
+
+      if (!updated) {
+        res.status(404).json({ success: false, error: 'Financial item not found' });
+        return;
+      }
+
+      res.json({
+        success: true,
+        data: updated,
+        message: 'Financial item updated',
+      });
+    } catch (error: any) {
+      logger.error('Error in PUT /transactions/:id:', error);
+      res.status(500).json({
+        success: false,
+        error: error?.message || 'Failed to update financial item',
+      });
+    }
+  }
+);
+
+// DELETE /api/transactions/:id - delete one horse revenue/expense line (admin)
+router.delete(
+  '/:id',
+  authenticateToken,
+  requireAdmin,
+  [param('id').isInt({ min: 1 }).withMessage('id must be a positive integer')],
+  handleValidation,
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const id = parseInt(req.params.id, 10);
+      const deleted = await transactionService.deleteTransaction(id);
+      if (!deleted) {
+        res.status(404).json({ success: false, error: 'Financial item not found' });
+        return;
+      }
+      res.json({ success: true, message: 'Financial item deleted' });
+    } catch (error) {
+      logger.error('Error in DELETE /transactions/:id:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to delete financial item',
       });
     }
   }

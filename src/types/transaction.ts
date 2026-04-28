@@ -59,3 +59,12 @@ export interface AddTransactionItem {
   amount: number;
   notes?: string;
 }
+
+/** Full replace of an existing horse_revenue_expense row (admin) */
+export interface UpdateTransactionInput {
+  horseId: number;
+  categoryId: string;
+  date: string;
+  amount: number;
+  notes?: string;
+}

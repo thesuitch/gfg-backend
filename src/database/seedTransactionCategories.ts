@@ -1,20 +1,146 @@
 import { PoolClient } from 'pg';
 import { logger } from '../utils/logger';
 
-/** Default transaction categories (same as migration 005 + descriptions). Idempotent upsert. */
+/**
+ * Canonical GFG transaction categories (revenue → expenses → adjustments).
+ * Idempotent upsert — run via `npm run seed` or `npm run seed:categories`.
+ */
 const DEFAULT_CATEGORIES = [
-  { id: 'rev1', name: 'Gross Revenue', type: 'revenue', group: 'revenue', allowsNegative: false, sortOrder: 1, description: 'Income from race winnings and performance' },
-  { id: 'rev2', name: 'Gain on Sale', type: 'revenue', group: 'revenue', allowsNegative: false, sortOrder: 2, description: 'Profit from selling horse shares or horses' },
-  { id: 'rev3', name: 'Driver/Trainer & NY Starter Fees', type: 'revenue', group: 'revenue', allowsNegative: true, sortOrder: 3, description: 'Fees paid to drivers, trainers, and starter fees' },
-  { id: 'exp2', name: 'Training', type: 'expense', group: 'expense', allowsNegative: false, sortOrder: 4, description: 'Regular training costs and related expenses' },
-  { id: 'exp3', name: 'Turn Out / Paddock', type: 'expense', group: 'expense', allowsNegative: false, sortOrder: 5, description: 'Costs for paddock use and turnout services' },
-  { id: 'exp4', name: 'Stall Rent', type: 'expense', group: 'expense', allowsNegative: false, sortOrder: 6, description: 'Monthly stall rental fees' },
-  { id: 'exp5', name: 'Blacksmith / Farrier', type: 'expense', group: 'expense', allowsNegative: false, sortOrder: 7, description: 'Horseshoeing and hoof care services' },
-  { id: 'exp6', name: 'Miscellaneous', type: 'expense', group: 'expense', allowsNegative: false, sortOrder: 8, description: 'Barn supplies, groom bonuses, insurance, etc.' },
-  { id: 'exp7', name: 'Veterinary & Treatment', type: 'expense', group: 'expense', allowsNegative: false, sortOrder: 9, description: 'Medical care and veterinary services' },
-  { id: 'exp8', name: 'Stakes Fees & Stakes Starter Fee', type: 'expense', group: 'expense', allowsNegative: false, sortOrder: 10, description: 'Entry fees for stakes races' },
-  { id: 'exp9', name: 'Race (Paddock, Shipping, Lasix, etc.)', type: 'expense', group: 'expense', allowsNegative: false, sortOrder: 11, description: 'Race day expenses including shipping and medications' },
-  { id: 'adj1', name: 'GFG Billing Adjustments or Corrections', type: 'adjustment', group: 'adjustment', allowsNegative: true, sortOrder: 12, description: 'Administrative adjustments and billing corrections' },
+  {
+    id: 'rev1',
+    name: 'Gross Revenue',
+    type: 'revenue' as const,
+    group: 'revenue' as const,
+    allowsNegative: false,
+    sortOrder: 1,
+    description: 'Income generated from purses earned from racing',
+  },
+  {
+    id: 'rev2',
+    name: 'Gain on Sale',
+    type: 'revenue' as const,
+    group: 'revenue' as const,
+    allowsNegative: false,
+    sortOrder: 2,
+    description: 'Proceeds from sale of horses',
+  },
+  {
+    id: 'rev3',
+    name: 'Driver/Trainer & NY Starter Fees',
+    type: 'revenue' as const,
+    group: 'revenue' as const,
+    allowsNegative: true,
+    sortOrder: 3,
+    description: '5% commission to Trainer and 5% to Driver from purses and NY Starter Fees per NY race',
+  },
+  {
+    id: 'rev4',
+    name: 'Net Purses',
+    type: 'revenue' as const,
+    group: 'revenue' as const,
+    allowsNegative: false,
+    sortOrder: 4,
+    description: 'Net purses after commission',
+  },
+  {
+    id: 'exp2',
+    name: 'Training',
+    type: 'expense' as const,
+    group: 'expense' as const,
+    allowsNegative: false,
+    sortOrder: 5,
+    description: 'Training expenses for horses',
+  },
+  {
+    id: 'exp3',
+    name: 'Turn Out / Paddock',
+    type: 'expense' as const,
+    group: 'expense' as const,
+    allowsNegative: false,
+    sortOrder: 6,
+    description: 'Turn out / paddock expenses',
+  },
+  {
+    id: 'exp4',
+    name: 'Stall Rent',
+    type: 'expense' as const,
+    group: 'expense' as const,
+    allowsNegative: false,
+    sortOrder: 7,
+    description: 'Stall rent expenses',
+  },
+  {
+    id: 'exp5',
+    name: 'Blacksmith / Farrier',
+    type: 'expense' as const,
+    group: 'expense' as const,
+    allowsNegative: false,
+    sortOrder: 8,
+    description: 'Farrier expenses',
+  },
+  {
+    id: 'exp6',
+    name: 'Miscellaneous',
+    type: 'expense' as const,
+    group: 'expense' as const,
+    allowsNegative: false,
+    sortOrder: 9,
+    description: 'Misc horse-related expenses',
+  },
+  {
+    id: 'exp7',
+    name: 'Veterinary & Treatment',
+    type: 'expense' as const,
+    group: 'expense' as const,
+    allowsNegative: false,
+    sortOrder: 10,
+    description: 'Vet and treatment expenses',
+  },
+  {
+    id: 'exp8',
+    name: 'Stakes Fees & Stakes Starter Fee',
+    type: 'expense' as const,
+    group: 'expense' as const,
+    allowsNegative: false,
+    sortOrder: 11,
+    description: 'Stakes-related fees',
+  },
+  {
+    id: 'exp9',
+    name: 'Race Expenses',
+    type: 'expense' as const,
+    group: 'expense' as const,
+    allowsNegative: false,
+    sortOrder: 12,
+    description: 'Race-related expenses',
+  },
+  {
+    id: 'exp10',
+    name: 'Shipping',
+    type: 'expense' as const,
+    group: 'expense' as const,
+    allowsNegative: false,
+    sortOrder: 13,
+    description: 'Fees to ship horses',
+  },
+  {
+    id: 'adj1',
+    name: 'GFG Billing Adjustments or Corrections',
+    type: 'adjustment' as const,
+    group: 'adjustment' as const,
+    allowsNegative: true,
+    sortOrder: 14,
+    description: 'Manual billing adjustments',
+  },
+  {
+    id: 'adj2',
+    name: 'GFG Gear Purchase',
+    type: 'adjustment' as const,
+    group: 'adjustment' as const,
+    allowsNegative: true,
+    sortOrder: 15,
+    description: 'GFG gear purchases',
+  },
 ];
 
 /** Check if transaction_categories has description and is_core columns (migration 006). */
@@ -43,6 +169,12 @@ async function hasSignage(client: PoolClient): Promise<boolean> {
   return r.rows.length > 0;
 }
 
+function signageForCategory(cat: (typeof DEFAULT_CATEGORIES)[0]): string {
+  if (cat.allowsNegative) return 'both';
+  if (cat.type === 'expense') return 'negative';
+  return 'positive';
+}
+
 export async function seedTransactionCategories(client: PoolClient): Promise<void> {
   logger.info('Seeding transaction categories...');
 
@@ -51,7 +183,7 @@ export async function seedTransactionCategories(client: PoolClient): Promise<voi
 
   if (hasExtraColumns) {
     for (const cat of DEFAULT_CATEGORIES) {
-      const signage = cat.allowsNegative ? 'both' : 'positive';
+      const signage = hasSignageCol ? signageForCategory(cat) : cat.allowsNegative ? 'both' : 'positive';
       if (hasSignageCol) {
         await client.query(
           `INSERT INTO transaction_categories (id, name, type, group_name, allows_negative, sort_order, description, is_core, signage)
