@@ -46,7 +46,8 @@ router.get('/',
     query('sortBy').optional().isIn(['name', 'age', 'price_per_percent', 'shares_remaining', 'earnings', 'wins', 'purchase_date']),
     query('sortOrder').optional().isIn(['asc', 'desc']),
     query('page').optional().isInt({ min: 1 }),
-    query('limit').optional().isInt({ min: 1, max: 100 })
+    // Admin/catalog callers request up to 500 in one page (e.g. financial items horse picker).
+    query('limit').optional().isInt({ min: 1, max: 500 })
   ],
   handleValidationErrors,
   async (req: Request, res: Response): Promise<void> => {
