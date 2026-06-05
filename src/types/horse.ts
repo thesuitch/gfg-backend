@@ -1,14 +1,28 @@
+import {
+  HORSE_AGE_CATEGORIES,
+  HORSE_GAITS,
+  HORSE_SEXES,
+  HORSE_STATUSES,
+  HORSE_TYPES,
+} from '../constants/horse';
+
+export type HorseStatus = (typeof HORSE_STATUSES)[number];
+export type HorseType = (typeof HORSE_TYPES)[number];
+export type HorseAgeCategory = (typeof HORSE_AGE_CATEGORIES)[number];
+export type HorseSex = (typeof HORSE_SEXES)[number];
+export type HorseGait = (typeof HORSE_GAITS)[number];
+
 export interface Horse {
   id: number;
   name: string;
   sire: string;
   dam: string;
-  sex: 'colt' | 'filly' | 'gelding' | 'mare' | 'stallion';
+  sex: HorseSex;
   age: number;
-  ageCategory: '1YO' | '2YO' | '3YO' | '4YO' | '5YO' | '6YO' | '7YO' | '8YO+';
-  gait: 'trotter' | 'pacer';
-  status: 'new' | 'old';
-  horseType: 'standardbred' | 'thoroughbred' | 'quarter_horse' | 'arabian' | 'other';
+  ageCategory: HorseAgeCategory;
+  gait: HorseGait;
+  status: HorseStatus;
+  horseType: HorseType;
   jurisdiction: string[];
   trainer?: string;
   stableLocation?: string;
@@ -26,6 +40,11 @@ export interface Horse {
   earnings: number;
   imageUrl?: string;
   description?: string;
+  archived: boolean;
+  isNew: boolean;
+  salePrice?: number;
+  lifetimePastPerformanceUrl?: string;
+  pedigreeUrl?: string;
   createdBy: number;
   updatedBy: number;
   createdAt: string;
@@ -88,12 +107,13 @@ export interface CreateHorseRequest {
   name: string;
   sire: string;
   dam: string;
-  sex: 'colt' | 'filly' | 'gelding' | 'mare' | 'stallion';
+  sex: HorseSex;
   age: number;
-  ageCategory: '1YO' | '2YO' | '3YO' | '4YO' | '5YO' | '6YO' | '7YO' | '8YO+';
-  gait: 'trotter' | 'pacer';
-  status: 'new' | 'old';
-  horseType: 'standardbred' | 'thoroughbred' | 'quarter_horse' | 'arabian' | 'other';
+  ageCategory: HorseAgeCategory;
+  gait: HorseGait;
+  status?: HorseStatus;
+  isNew?: boolean;
+  horseType: HorseType;
   jurisdiction: string[];
   trainer?: string;
   stableLocation?: string;
@@ -103,6 +123,7 @@ export interface CreateHorseRequest {
   pricePerPercent: number;
   initialShares?: number;
   currentShares?: number;
+  sharesRemaining?: number;
   wins?: number;
   places?: number;
   shows?: number;
@@ -110,18 +131,22 @@ export interface CreateHorseRequest {
   earnings?: number;
   imageUrl?: string;
   description?: string;
+  salePrice?: number;
+  lifetimePastPerformanceUrl?: string;
+  pedigreeUrl?: string;
 }
 
 export interface UpdateHorseRequest {
   name?: string;
   sire?: string;
   dam?: string;
-  sex?: 'colt' | 'filly' | 'gelding' | 'mare' | 'stallion';
+  sex?: HorseSex;
   age?: number;
-  ageCategory?: '1YO' | '2YO' | '3YO' | '4YO' | '5YO' | '6YO' | '7YO' | '8YO+';
-  gait?: 'trotter' | 'pacer';
-  status?: 'new' | 'old';
-  horseType?: 'standardbred' | 'thoroughbred' | 'quarter_horse' | 'arabian' | 'other';
+  ageCategory?: HorseAgeCategory;
+  gait?: HorseGait;
+  status?: HorseStatus;
+  isNew?: boolean;
+  horseType?: HorseType;
   jurisdiction?: string[];
   trainer?: string;
   stableLocation?: string;
@@ -131,6 +156,7 @@ export interface UpdateHorseRequest {
   pricePerPercent?: number;
   initialShares?: number;
   currentShares?: number;
+  sharesRemaining?: number;
   wins?: number;
   places?: number;
   shows?: number;
@@ -138,6 +164,9 @@ export interface UpdateHorseRequest {
   earnings?: number;
   imageUrl?: string;
   description?: string;
+  salePrice?: number;
+  lifetimePastPerformanceUrl?: string;
+  pedigreeUrl?: string;
 }
 
 export interface HorseFilters {
@@ -155,6 +184,7 @@ export interface HorseFilters {
   sortOrder?: 'asc' | 'desc';
   page?: number;
   limit?: number;
+  includeArchived?: boolean;
 }
 
 export interface HorseStatistics {

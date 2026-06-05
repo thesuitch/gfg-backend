@@ -1,11 +1,10 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { body, validationResult } from 'express-validator';
 import { taxDocumentService } from '../services/taxDocumentService';
-import { authenticateToken, requireAdmin } from '../middleware/auth';
+import { authenticateToken, requireAdmin, canAccessMemberResource } from '../middleware/auth';
 import { asyncHandler } from '../middleware/errorHandler';
 import { upload, handleUploadError } from '../middleware/upload';
 import { logger } from '../utils/logger';
-import path from 'path';
 import fs from 'fs';
 
 const router = Router();
@@ -28,6 +27,30 @@ const handleValidationErrors = (req: Request, res: Response, next: NextFunction)
   }
   next();
 };
+
+const assertMemberAccess = (req: Request, res: Response, memberId: number): boolean => {
+  if (!canAccessMemberResource(req.user, memberId)) {
+    res.status(403).json({
+      error: 'Insufficient permissions',
+      message: 'You can only access your own tax documents'
+    });
+    return false;
+  }
+  return true;
+};
+
+// GET /api/tax-documents/me — current member's documents
+router.get('/me',
+  authenticateToken,
+  asyncHandler(async (req: Request, res: Response) => {
+    const documents = await taxDocumentService.getDocumentsByMember(req.user!.user_id);
+
+    res.json({
+      message: 'Documents retrieved successfully',
+      data: documents
+    });
+  })
+);
 
 // POST /api/tax-documents/upload/:memberId
 router.post('/upload/:memberId', 
@@ -73,9 +96,10 @@ router.post('/upload/:memberId',
 // GET /api/tax-documents/member/:memberId
 router.get('/member/:memberId', 
   authenticateToken,
-  requireAdmin,
   asyncHandler(async (req: Request, res: Response) => {
     const memberId = parseInt(req.params.memberId);
+    if (!assertMemberAccess(req, res, memberId)) return;
+
     const documents = await taxDocumentService.getDocumentsByMember(memberId);
 
     res.json({
@@ -88,10 +112,17 @@ router.get('/member/:memberId',
 // GET /api/tax-documents/:documentId/download
 router.get('/:documentId/download', 
   authenticateToken,
-  requireAdmin,
   asyncHandler(async (req: Request, res: Response) => {
     const documentId = parseInt(req.params.documentId);
     const { document, filePath } = await taxDocumentService.getDocumentFile(documentId);
+
+    if (!canAccessMemberResource(req.user, document.member_id)) {
+      res.status(403).json({
+        error: 'Insufficient permissions',
+        message: 'You can only download your own tax documents'
+      });
+      return;
+    }
 
     // Set appropriate headers for file download
     res.setHeader('Content-Disposition', `attachment; filename="${document.original_name}"`);
@@ -130,9 +161,10 @@ router.delete('/:documentId',
 // GET /api/tax-documents/member/:memberId/year/:year
 router.get('/member/:memberId/year/:year', 
   authenticateToken,
-  requireAdmin,
   asyncHandler(async (req: Request, res: Response) => {
     const memberId = parseInt(req.params.memberId);
+    if (!assertMemberAccess(req, res, memberId)) return;
+
     const year = parseInt(req.params.year);
     const documents = await taxDocumentService.getDocumentsByYear(memberId, year);
 
@@ -146,9 +178,10 @@ router.get('/member/:memberId/year/:year',
 // GET /api/tax-documents/member/:memberId/type/:type
 router.get('/member/:memberId/type/:type', 
   authenticateToken,
-  requireAdmin,
   asyncHandler(async (req: Request, res: Response) => {
     const memberId = parseInt(req.params.memberId);
+    if (!assertMemberAccess(req, res, memberId)) return;
+
     const documentType = req.params.type;
     const documents = await taxDocumentService.getDocumentsByType(memberId, documentType);
 

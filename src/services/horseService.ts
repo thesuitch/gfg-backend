@@ -15,6 +15,54 @@ import {
 } from '../types/horse';
 import { logger } from '../utils/logger';
 
+const HORSE_SELECT_FIELDS = `
+  h.id, h.name, h.sire, h.dam, h.sex, h.age, h.age_category as "ageCategory",
+  h.gait, h.status, h.horse_type as "horseType", h.jurisdiction, h.trainer,
+  h.stable_location as "stableLocation", h.purchase_date as "purchaseDate",
+  h.purchase_price as "purchasePrice", h.current_value as "currentValue",
+  h.price_per_percent as "pricePerPercent", h.initial_shares as "initialShares",
+  h.current_shares as "currentShares", h.shares_remaining as "sharesRemaining",
+  h.wins, h.places, h.shows, h.races, h.earnings, h.image_url as "imageUrl",
+  h.description, h.archived, h.is_new as "isNew", h.sale_price as "salePrice",
+  h.lifetime_past_performance_url as "lifetimePastPerformanceUrl",
+  h.pedigree_url as "pedigreeUrl",
+  h.created_by as "createdBy", h.updated_by as "updatedBy",
+  h.created_at as "createdAt", h.updated_at as "updatedAt"
+`;
+
+const UPDATE_FIELD_MAP: Record<string, string> = {
+  name: 'name',
+  sire: 'sire',
+  dam: 'dam',
+  sex: 'sex',
+  age: 'age',
+  ageCategory: 'age_category',
+  gait: 'gait',
+  status: 'status',
+  isNew: 'is_new',
+  horseType: 'horse_type',
+  jurisdiction: 'jurisdiction',
+  trainer: 'trainer',
+  stableLocation: 'stable_location',
+  purchaseDate: 'purchase_date',
+  purchasePrice: 'purchase_price',
+  currentValue: 'current_value',
+  pricePerPercent: 'price_per_percent',
+  initialShares: 'initial_shares',
+  currentShares: 'current_shares',
+  sharesRemaining: 'shares_remaining',
+  wins: 'wins',
+  places: 'places',
+  shows: 'shows',
+  races: 'races',
+  earnings: 'earnings',
+  imageUrl: 'image_url',
+  description: 'description',
+  salePrice: 'sale_price',
+  lifetimePastPerformanceUrl: 'lifetime_past_performance_url',
+  pedigreeUrl: 'pedigree_url',
+};
+
 export class HorseService {
   private pool: Pool;
 
@@ -39,12 +87,17 @@ export class HorseService {
         sortBy = 'name',
         sortOrder = 'asc',
         page = 1,
-        limit = 50
+        limit = 50,
+        includeArchived = false
       } = filters;
 
       let whereConditions: string[] = [];
       let queryParams: any[] = [];
       let paramIndex = 1;
+
+      if (!includeArchived) {
+        whereConditions.push(`COALESCE(h.archived, false) = false`);
+      }
 
       // Build WHERE conditions
       if (search) {
@@ -154,16 +207,7 @@ export class HorseService {
 
       // Get horses with pagination
       const horsesQuery = `
-        SELECT 
-          h.id, h.name, h.sire, h.dam, h.sex, h.age, h.age_category as "ageCategory",
-          h.gait, h.status, h.horse_type as "horseType", h.jurisdiction, h.trainer,
-          h.stable_location as "stableLocation", h.purchase_date as "purchaseDate",
-          h.purchase_price as "purchasePrice", h.current_value as "currentValue",
-          h.price_per_percent as "pricePerPercent", h.initial_shares as "initialShares",
-          h.current_shares as "currentShares", h.shares_remaining as "sharesRemaining",
-          h.wins, h.places, h.shows, h.races, h.earnings, h.image_url as "imageUrl",
-          h.description, h.created_by as "createdBy", h.updated_by as "updatedBy",
-          h.created_at as "createdAt", h.updated_at as "updatedAt"
+        SELECT ${HORSE_SELECT_FIELDS}
         FROM horses h
         ${whereClause}
         ORDER BY ${orderBy}
@@ -190,16 +234,7 @@ export class HorseService {
   async getHorseById(id: number): Promise<Horse | null> {
     try {
       const query = `
-        SELECT 
-          h.id, h.name, h.sire, h.dam, h.sex, h.age, h.age_category as "ageCategory",
-          h.gait, h.status, h.horse_type as "horseType", h.jurisdiction, h.trainer,
-          h.stable_location as "stableLocation", h.purchase_date as "purchaseDate",
-          h.purchase_price as "purchasePrice", h.current_value as "currentValue",
-          h.price_per_percent as "pricePerPercent", h.initial_shares as "initialShares",
-          h.current_shares as "currentShares", h.shares_remaining as "sharesRemaining",
-          h.wins, h.places, h.shows, h.races, h.earnings, h.image_url as "imageUrl",
-          h.description, h.created_by as "createdBy", h.updated_by as "updatedBy",
-          h.created_at as "createdAt", h.updated_at as "updatedAt"
+        SELECT ${HORSE_SELECT_FIELDS}
         FROM horses h
         WHERE h.id = $1
       `;
@@ -216,37 +251,51 @@ export class HorseService {
   async createHorse(horseData: CreateHorseRequest, userId: number): Promise<Horse> {
     try {
       const {
-        name, sire, dam, sex, age, ageCategory, gait, status, horseType,
+        name, sire, dam, sex, age, ageCategory, gait,
+        status = 'active',
+        isNew = true,
+        horseType,
         jurisdiction, trainer, stableLocation, purchaseDate, purchasePrice,
-        currentValue, pricePerPercent, initialShares = 100, currentShares = 100,
+        currentValue, pricePerPercent,
+        initialShares = 100,
+        sharesRemaining,
         wins = 0, places = 0, shows = 0, races = 0, earnings = 0,
-        imageUrl, description
+        imageUrl, description, salePrice, lifetimePastPerformanceUrl, pedigreeUrl
       } = horseData;
 
-      const sharesRemaining = initialShares - currentShares;
+      const resolvedSharesRemaining = sharesRemaining ?? horseData.currentShares ?? initialShares;
+      const currentShares = resolvedSharesRemaining;
 
       const query = `
         INSERT INTO horses (
-          name, sire, dam, sex, age, age_category, gait, status, horse_type,
+          name, sire, dam, sex, age, age_category, gait, status, is_new, horse_type,
           jurisdiction, trainer, stable_location, purchase_date, purchase_price,
           current_value, price_per_percent, initial_shares, current_shares,
           shares_remaining, wins, places, shows, races, earnings, image_url,
-          description, created_by, updated_by
+          description, sale_price, lifetime_past_performance_url, pedigree_url,
+          created_by, updated_by
         ) VALUES (
-          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20, $21, $22, $23, $24, $25, $26, $27, $28
-        ) RETURNING *
+          $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, $17, $18, $19, $20,
+          $21, $22, $23, $24, $25, $26, $27, $28, $29, $30, $31, $32
+        )
+        RETURNING id
       `;
 
       const values = [
-        name, sire, dam, sex, age, ageCategory, gait, status, horseType,
+        name, sire, dam, sex, age, ageCategory, gait, status, isNew, horseType,
         Array.isArray(jurisdiction) ? jurisdiction : [jurisdiction], trainer, stableLocation, purchaseDate, purchasePrice,
         currentValue, pricePerPercent, initialShares, currentShares,
-        sharesRemaining, wins, places, shows, races, earnings, imageUrl,
-        description, userId, userId
+        resolvedSharesRemaining, wins, places, shows, races, earnings, imageUrl,
+        description, salePrice, lifetimePastPerformanceUrl, pedigreeUrl,
+        userId, userId
       ];
 
       const result = await this.pool.query(query, values);
-      return result.rows[0];
+      const created = await this.getHorseById(result.rows[0].id);
+      if (!created) {
+        throw new Error('Failed to fetch created horse');
+      }
+      return created;
     } catch (error) {
       logger.error('Error creating horse:', error);
       throw new Error('Failed to create horse');
@@ -260,15 +309,20 @@ export class HorseService {
       const values: any[] = [];
       let paramIndex = 1;
 
-      // Build dynamic update query
       Object.entries(horseData).forEach(([key, value]) => {
-        if (value !== undefined) {
-          const dbKey = key.replace(/([A-Z])/g, '_$1').toLowerCase();
-          updateFields.push(`${dbKey} = $${paramIndex}`);
-          values.push(value);
-          paramIndex++;
-        }
+        if (value === undefined) return;
+        const dbKey = UPDATE_FIELD_MAP[key];
+        if (!dbKey) return;
+        updateFields.push(`${dbKey} = $${paramIndex}`);
+        values.push(value);
+        paramIndex++;
       });
+
+      if (horseData.sharesRemaining !== undefined && horseData.currentShares === undefined) {
+        updateFields.push(`current_shares = $${paramIndex}`);
+        values.push(horseData.sharesRemaining);
+        paramIndex++;
+      }
 
       if (updateFields.length === 0) {
         throw new Error('No fields to update');
@@ -279,21 +333,38 @@ export class HorseService {
       paramIndex++;
 
       updateFields.push(`updated_at = CURRENT_TIMESTAMP`);
-
       values.push(id);
 
       const query = `
         UPDATE horses 
         SET ${updateFields.join(', ')}
         WHERE id = $${paramIndex}
-        RETURNING *
+        RETURNING id
       `;
 
       const result = await this.pool.query(query, values);
-      return result.rows[0] || null;
+      if (!result.rows[0]) return null;
+      return this.getHorseById(id);
     } catch (error) {
       logger.error('Error updating horse:', error);
       throw new Error('Failed to update horse');
+    }
+  }
+
+  async archiveHorse(id: number, userId: number): Promise<Horse | null> {
+    try {
+      const query = `
+        UPDATE horses
+        SET archived = true, status = 'sold', updated_by = $2, updated_at = CURRENT_TIMESTAMP
+        WHERE id = $1
+        RETURNING id
+      `;
+      const result = await this.pool.query(query, [id, userId]);
+      if (!result.rows[0]) return null;
+      return this.getHorseById(id);
+    } catch (error) {
+      logger.error('Error archiving horse:', error);
+      throw new Error('Failed to archive horse');
     }
   }
 
@@ -313,16 +384,7 @@ export class HorseService {
   async getHorsesByMember(memberId: number): Promise<Horse[]> {
     try {
       const query = `
-        SELECT DISTINCT
-          h.id, h.name, h.sire, h.dam, h.sex, h.age, h.age_category as "ageCategory",
-          h.gait, h.status, h.horse_type as "horseType", h.jurisdiction, h.trainer,
-          h.stable_location as "stableLocation", h.purchase_date as "purchaseDate",
-          h.purchase_price as "purchasePrice", h.current_value as "currentValue",
-          h.price_per_percent as "pricePerPercent", h.initial_shares as "initialShares",
-          h.current_shares as "currentShares", h.shares_remaining as "sharesRemaining",
-          h.wins, h.places, h.shows, h.races, h.earnings, h.image_url as "imageUrl",
-          h.description, h.created_by as "createdBy", h.updated_by as "updatedBy",
-          h.created_at as "createdAt", h.updated_at as "updatedAt"
+        SELECT DISTINCT ${HORSE_SELECT_FIELDS}
         FROM horses h
         INNER JOIN horse_ownership ho ON h.id = ho.horse_id
         WHERE ho.member_id = $1 AND ho.is_active = true
@@ -400,9 +462,9 @@ export class HorseService {
       const query = `
         SELECT 
           COUNT(*) as total_horses,
-          COUNT(CASE WHEN status = 'new' THEN 1 END) as active_horses,
-          COUNT(CASE WHEN status = 'old' THEN 1 END) as retired_horses,
-          COUNT(CASE WHEN shares_remaining = 0 THEN 1 END) as sold_horses,
+          COUNT(CASE WHEN status = 'active' AND COALESCE(archived, false) = false THEN 1 END) as active_horses,
+          COUNT(CASE WHEN status = 'retired' THEN 1 END) as retired_horses,
+          COUNT(CASE WHEN status = 'sold' OR COALESCE(archived, false) = true THEN 1 END) as sold_horses,
           COALESCE(SUM(current_value), 0) as total_value,
           COALESCE(AVG(current_value), 0) as average_value,
           COALESCE(SUM(earnings), 0) as total_earnings,

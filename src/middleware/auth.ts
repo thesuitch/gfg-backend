@@ -61,3 +61,15 @@ export const requireAdmin = requireRole(['admin']);
 export const requireMember = requireRole(['member', 'admin', 'finance', 'manager']);
 export const requireFinance = requireRole(['finance', 'admin']);
 export const requireManager = requireRole(['manager', 'admin']);
+
+const STAFF_ROLES = ['admin', 'finance', 'manager'];
+
+export const isStaffUser = (user?: JwtPayload): boolean => {
+  return !!user && STAFF_ROLES.includes(user.role_name);
+};
+
+export const canAccessMemberResource = (user: JwtPayload | undefined, memberId: number): boolean => {
+  if (!user) return false;
+  if (isStaffUser(user)) return true;
+  return user.user_id === memberId;
+};

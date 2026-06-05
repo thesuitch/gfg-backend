@@ -4,6 +4,14 @@ import { HorseService } from '../services/horseService';
 import { authenticateToken } from '../middleware/auth';
 import { logger } from '../utils/logger';
 import { Pool } from 'pg';
+import {
+  HORSE_AGE_CATEGORIES,
+  HORSE_GAITS,
+  HORSE_SEXES,
+  HORSE_STATUSES,
+  HORSE_TYPES,
+  isValidHorseImageUrl,
+} from '../constants/horse';
 
 const router = Router();
 
@@ -29,25 +37,110 @@ const handleValidationErrors = (req: Request, res: Response, next: NextFunction)
   next();
 };
 
+const parseIncludeArchived = (value: unknown): boolean => {
+  if (value === undefined || value === null || value === '') return false;
+  if (typeof value === 'boolean') return value;
+  return String(value).toLowerCase() === 'true';
+};
+
+const horseBodyValidators = [
+  body('name').isString().trim().isLength({ min: 1, max: 255 }).withMessage('Name is required and must be 1-255 characters'),
+  body('sire').isString().trim().isLength({ min: 1, max: 255 }).withMessage('Sire is required and must be 1-255 characters'),
+  body('dam').isString().trim().isLength({ min: 1, max: 255 }).withMessage('Dam is required and must be 1-255 characters'),
+  body('sex').isIn([...HORSE_SEXES]).withMessage('Invalid sex'),
+  body('age').isInt({ min: 1, max: 30 }).withMessage('Age must be between 1 and 30'),
+  body('ageCategory').isIn([...HORSE_AGE_CATEGORIES]).withMessage('Invalid age category'),
+  body('gait').isIn([...HORSE_GAITS]).withMessage('Invalid gait'),
+  body('status').optional().isIn([...HORSE_STATUSES]).withMessage('Invalid status'),
+  body('isNew').optional().isBoolean().withMessage('Invalid isNew value'),
+  body('horseType').isIn([...HORSE_TYPES]).withMessage('Invalid horse type'),
+  body('jurisdiction').isArray({ min: 1 }).withMessage('At least one jurisdiction is required'),
+  body('jurisdiction.*').isString().trim().isLength({ min: 1, max: 10 }).withMessage('Invalid jurisdiction'),
+  body('trainer').optional().isString().trim().isLength({ max: 255 }),
+  body('stableLocation').optional().isString().trim().isLength({ max: 255 }),
+  body('purchaseDate').isISO8601().withMessage('Invalid purchase date'),
+  body('purchasePrice').isFloat({ min: 0 }).withMessage('Purchase price must be a positive number'),
+  body('currentValue').optional().isFloat({ min: 0 }).withMessage('Current value must be a positive number'),
+  body('pricePerPercent').isFloat({ min: 0 }).withMessage('Price per percent must be a positive number'),
+  body('initialShares').optional().isInt({ min: 1, max: 100 }).withMessage('Initial shares must be between 1 and 100'),
+  body('currentShares').optional().isInt({ min: 0, max: 100 }).withMessage('Current shares must be between 0 and 100'),
+  body('sharesRemaining').optional().isInt({ min: 0, max: 100 }).withMessage('Shares remaining must be between 0 and 100'),
+  body('wins').optional().isInt({ min: 0 }).withMessage('Wins must be a non-negative integer'),
+  body('places').optional().isInt({ min: 0 }).withMessage('Places must be a non-negative integer'),
+  body('shows').optional().isInt({ min: 0 }).withMessage('Shows must be a non-negative integer'),
+  body('races').optional().isInt({ min: 0 }).withMessage('Races must be a non-negative integer'),
+  body('earnings').optional().isFloat({ min: 0 }).withMessage('Earnings must be a non-negative number'),
+  body('imageUrl').optional().custom((value) => {
+    if (!isValidHorseImageUrl(value)) {
+      throw new Error('Invalid image URL');
+    }
+    return true;
+  }).withMessage('Invalid image URL'),
+  body('description').optional().isString().trim().isLength({ max: 1000 }).withMessage('Description must be less than 1000 characters'),
+  body('salePrice').optional().isFloat({ min: 0 }).withMessage('Sale price must be a positive number'),
+  body('lifetimePastPerformanceUrl').optional().isString().trim().isLength({ max: 2000 }),
+  body('pedigreeUrl').optional().isString().trim().isLength({ max: 2000 }),
+];
+
+const horseUpdateValidators = [
+  body('name').optional().isString().trim().isLength({ min: 1, max: 255 }),
+  body('sire').optional().isString().trim().isLength({ min: 1, max: 255 }),
+  body('dam').optional().isString().trim().isLength({ min: 1, max: 255 }),
+  body('sex').optional().isIn([...HORSE_SEXES]),
+  body('age').optional().isInt({ min: 1, max: 30 }),
+  body('ageCategory').optional().isIn([...HORSE_AGE_CATEGORIES]),
+  body('gait').optional().isIn([...HORSE_GAITS]),
+  body('status').optional().isIn([...HORSE_STATUSES]),
+  body('isNew').optional().isBoolean(),
+  body('horseType').optional().isIn([...HORSE_TYPES]),
+  body('jurisdiction').optional().isArray({ min: 1 }),
+  body('jurisdiction.*').optional().isString().trim().isLength({ min: 1, max: 10 }),
+  body('trainer').optional().isString().trim().isLength({ max: 255 }),
+  body('stableLocation').optional().isString().trim().isLength({ max: 255 }),
+  body('purchaseDate').optional().isISO8601(),
+  body('purchasePrice').optional().isFloat({ min: 0 }),
+  body('currentValue').optional().isFloat({ min: 0 }),
+  body('pricePerPercent').optional().isFloat({ min: 0 }),
+  body('initialShares').optional().isInt({ min: 1, max: 100 }),
+  body('currentShares').optional().isInt({ min: 0, max: 100 }),
+  body('sharesRemaining').optional().isInt({ min: 0, max: 100 }),
+  body('wins').optional().isInt({ min: 0 }),
+  body('places').optional().isInt({ min: 0 }),
+  body('shows').optional().isInt({ min: 0 }),
+  body('races').optional().isInt({ min: 0 }),
+  body('earnings').optional().isFloat({ min: 0 }),
+  body('imageUrl').optional().custom((value) => {
+    if (!isValidHorseImageUrl(value)) {
+      throw new Error('Invalid image URL');
+    }
+    return true;
+  }),
+  body('description').optional().isString().trim().isLength({ max: 1000 }),
+  body('salePrice').optional().isFloat({ min: 0 }),
+  body('lifetimePastPerformanceUrl').optional().isString().trim().isLength({ max: 2000 }),
+  body('pedigreeUrl').optional().isString().trim().isLength({ max: 2000 }),
+];
+
 // Get all horses with optional filtering and pagination
 router.get('/', 
   authenticateToken,
   [
     query('search').optional().isString().trim(),
-    query('status').optional().isIn(['new', 'old', 'available', 'sold_out']),
+    query('status').optional().isIn([...HORSE_STATUSES, 'available', 'sold_out']),
     query('age').optional().isString(),
     query('gait').optional().isIn(['trotter', 'pacer']),
     query('jurisdiction').optional().isString(),
     query('sex').optional().isIn(['colt', 'filly', 'gelding', 'mare', 'stallion']),
     query('sire').optional().isString().trim(),
     query('trainer').optional().isString().trim(),
-    query('horseType').optional().isIn(['standardbred', 'thoroughbred', 'quarter_horse', 'arabian', 'other']),
+    query('horseType').optional().isIn([...HORSE_TYPES]),
     query('priceRange').optional().isIn(['0-50', '51-100', '101-200', '200+']),
     query('sortBy').optional().isIn(['name', 'age', 'price_per_percent', 'shares_remaining', 'earnings', 'wins', 'purchase_date']),
     query('sortOrder').optional().isIn(['asc', 'desc']),
     query('page').optional().isInt({ min: 1 }),
     // Admin/catalog callers request up to 500 in one page (e.g. financial items horse picker).
-    query('limit').optional().isInt({ min: 1, max: 500 })
+    query('limit').optional().isInt({ min: 1, max: 500 }),
+    query('includeArchived').optional()
   ],
   handleValidationErrors,
   async (req: Request, res: Response): Promise<void> => {
@@ -66,7 +159,8 @@ router.get('/',
         sortBy: req.query.sortBy as string,
         sortOrder: req.query.sortOrder as 'asc' | 'desc',
         page: req.query.page ? parseInt(req.query.page as string) : undefined,
-        limit: req.query.limit ? parseInt(req.query.limit as string) : undefined
+        limit: req.query.limit ? parseInt(req.query.limit as string) : undefined,
+        includeArchived: parseIncludeArchived(req.query.includeArchived)
       };
 
       const result = await horseService.getHorses(filters);
@@ -128,34 +222,7 @@ router.get('/:id',
 // Create a new horse
 router.post('/',
   authenticateToken,
-  [
-    body('name').isString().trim().isLength({ min: 1, max: 255 }).withMessage('Name is required and must be 1-255 characters'),
-    body('sire').isString().trim().isLength({ min: 1, max: 255 }).withMessage('Sire is required and must be 1-255 characters'),
-    body('dam').isString().trim().isLength({ min: 1, max: 255 }).withMessage('Dam is required and must be 1-255 characters'),
-    body('sex').isIn(['colt', 'filly', 'gelding', 'mare', 'stallion']).withMessage('Invalid sex'),
-    body('age').isInt({ min: 1, max: 30 }).withMessage('Age must be between 1 and 30'),
-    body('ageCategory').isIn(['1YO', '2YO', '3YO', '4YO', '5YO', '6YO', '7YO', '8YO+']).withMessage('Invalid age category'),
-    body('gait').isIn(['trotter', 'pacer']).withMessage('Invalid gait'),
-    body('status').isIn(['new', 'old']).withMessage('Invalid status'),
-    body('horseType').isIn(['standardbred', 'thoroughbred', 'quarter_horse', 'arabian', 'other']).withMessage('Invalid horse type'),
-    body('jurisdiction').isArray({ min: 1 }).withMessage('At least one jurisdiction is required'),
-    body('jurisdiction.*').isString().trim().isLength({ min: 1, max: 10 }).withMessage('Invalid jurisdiction'),
-    body('trainer').optional().isString().trim().isLength({ max: 255 }),
-    body('stableLocation').optional().isString().trim().isLength({ max: 255 }),
-    body('purchaseDate').isISO8601().withMessage('Invalid purchase date'),
-    body('purchasePrice').isFloat({ min: 0 }).withMessage('Purchase price must be a positive number'),
-    body('currentValue').optional().isFloat({ min: 0 }).withMessage('Current value must be a positive number'),
-    body('pricePerPercent').isFloat({ min: 0 }).withMessage('Price per percent must be a positive number'),
-    body('initialShares').optional().isInt({ min: 1, max: 100 }).withMessage('Initial shares must be between 1 and 100'),
-    body('currentShares').optional().isInt({ min: 0, max: 100 }).withMessage('Current shares must be between 0 and 100'),
-    body('wins').optional().isInt({ min: 0 }).withMessage('Wins must be a non-negative integer'),
-    body('places').optional().isInt({ min: 0 }).withMessage('Places must be a non-negative integer'),
-    body('shows').optional().isInt({ min: 0 }).withMessage('Shows must be a non-negative integer'),
-    body('races').optional().isInt({ min: 0 }).withMessage('Races must be a non-negative integer'),
-    body('earnings').optional().isFloat({ min: 0 }).withMessage('Earnings must be a non-negative number'),
-    body('imageUrl').optional().isURL().withMessage('Invalid image URL'),
-    body('description').optional().isString().trim().isLength({ max: 1000 }).withMessage('Description must be less than 1000 characters')
-  ],
+  horseBodyValidators,
   handleValidationErrors,
   async (req: Request, res: Response): Promise<void> => {
     try {
@@ -186,32 +253,7 @@ router.put('/:id',
   authenticateToken,
   [
     param('id').isInt({ min: 1 }).withMessage('Invalid horse ID'),
-    body('name').optional().isString().trim().isLength({ min: 1, max: 255 }),
-    body('sire').optional().isString().trim().isLength({ min: 1, max: 255 }),
-    body('dam').optional().isString().trim().isLength({ min: 1, max: 255 }),
-    body('sex').optional().isIn(['colt', 'filly', 'gelding', 'mare', 'stallion']),
-    body('age').optional().isInt({ min: 1, max: 30 }),
-    body('ageCategory').optional().isIn(['1YO', '2YO', '3YO', '4YO', '5YO', '6YO', '7YO', '8YO+']),
-    body('gait').optional().isIn(['trotter', 'pacer']),
-    body('status').optional().isIn(['new', 'old']),
-    body('horseType').optional().isIn(['standardbred', 'thoroughbred', 'quarter_horse', 'arabian', 'other']),
-    body('jurisdiction').optional().isArray({ min: 1 }),
-    body('jurisdiction.*').optional().isString().trim().isLength({ min: 1, max: 10 }),
-    body('trainer').optional().isString().trim().isLength({ max: 255 }),
-    body('stableLocation').optional().isString().trim().isLength({ max: 255 }),
-    body('purchaseDate').optional().isISO8601(),
-    body('purchasePrice').optional().isFloat({ min: 0 }),
-    body('currentValue').optional().isFloat({ min: 0 }),
-    body('pricePerPercent').optional().isFloat({ min: 0 }),
-    body('initialShares').optional().isInt({ min: 1, max: 100 }),
-    body('currentShares').optional().isInt({ min: 0, max: 100 }),
-    body('wins').optional().isInt({ min: 0 }),
-    body('places').optional().isInt({ min: 0 }),
-    body('shows').optional().isInt({ min: 0 }),
-    body('races').optional().isInt({ min: 0 }),
-    body('earnings').optional().isFloat({ min: 0 }),
-    body('imageUrl').optional().isURL(),
-    body('description').optional().isString().trim().isLength({ max: 1000 })
+    ...horseUpdateValidators,
   ],
   handleValidationErrors,
   async (req: Request, res: Response): Promise<void> => {
@@ -242,6 +284,46 @@ router.put('/:id',
       res.status(500).json({
         success: false,
         error: 'Failed to update horse'
+      });
+    }
+  }
+);
+
+// Archive a horse (soft delete — preserves transaction history)
+router.post('/:id/archive',
+  authenticateToken,
+  [
+    param('id').isInt({ min: 1 }).withMessage('Invalid horse ID')
+  ],
+  handleValidationErrors,
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const horseId = parseInt(req.params.id);
+      const userId = req.user?.user_id;
+      if (!userId) {
+        res.status(401).json({ error: 'User not authenticated' });
+        return;
+      }
+      const horse = await horseService.archiveHorse(horseId, userId);
+
+      if (!horse) {
+        res.status(404).json({
+          success: false,
+          error: 'Horse not found'
+        });
+        return;
+      }
+
+      res.json({
+        success: true,
+        data: horse,
+        message: 'Horse archived successfully'
+      });
+    } catch (error) {
+      logger.error('Error in POST /horses/:id/archive:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to archive horse'
       });
     }
   }
