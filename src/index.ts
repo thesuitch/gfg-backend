@@ -9,6 +9,8 @@ import { authRoutes } from './routes/auth';
 import { taxDocumentRoutes } from './routes/taxDocuments';
 import { initializeHorseRoutes } from './routes/horses';
 import { initializeTransactionRoutes } from './routes/transactions';
+import { initializeMemberActivityRoutes } from './routes/memberActivities';
+import { initializeUpdateRoutes } from './routes/updates';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from './utils/logger';
 import { createSSLConfig, createHTTPSOptions, redirectToHTTPS } from './utils/ssl';
@@ -63,6 +65,8 @@ app.use('/api/auth', authRoutes);
 app.use('/api/tax-documents', taxDocumentRoutes);
 app.use('/api/horses', initializeHorseRoutes(pool));
 app.use('/api/transactions', initializeTransactionRoutes(pool));
+app.use('/api/member-activities', initializeMemberActivityRoutes(pool));
+app.use('/api/updates', initializeUpdateRoutes(pool));
 
 // 404 handler
 app.use('*', (req, res) => {

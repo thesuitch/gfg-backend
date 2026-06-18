@@ -9,6 +9,7 @@
     "start:prod": "NODE_ENV=production node dist/index.js",
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "migrate": "ts-node -r dotenv/config src/database/migrate.ts",
+    "migrate:status": "ts-node -r dotenv/config src/database/migrateStatus.ts",
     "migrate:create": "ts-node -r dotenv/config src/database/create-migration.ts",
     "seed": "ts-node -r dotenv/config src/database/seed.ts",
     "seed:categories": "ts-node -r dotenv/config src/database/seedCategoriesOnly.ts",

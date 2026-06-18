@@ -13,6 +13,7 @@ import {
   UpdatePerformanceRequest,
   UpdateFinancialsRequest
 } from '../types/horse';
+import { MemberActivityService } from './memberActivityService';
 import { logger } from '../utils/logger';
 
 const HORSE_SELECT_FIELDS = `
@@ -444,6 +445,20 @@ export class HorseService {
         horseId, purchaseData.memberId, purchaseData.percentage, 
         horse.price_per_percent, totalPrice, userId
       ]);
+
+      // Auto-log member activity for direct GFG purchase
+      try {
+        const memberActivityService = new MemberActivityService(this.pool);
+        await memberActivityService.createFromDirectPurchase(client, {
+          memberId: purchaseData.memberId,
+          horseId,
+          percentage: purchaseData.percentage,
+          totalAmount: totalPrice,
+          createdBy: userId,
+        });
+      } catch (activityErr) {
+        logger.warn('Could not auto-log member activity (table may not exist yet):', activityErr);
+      }
 
       await client.query('COMMIT');
       return ownershipResult.rows[0];
