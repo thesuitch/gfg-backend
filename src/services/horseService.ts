@@ -15,10 +15,11 @@ import {
 } from '../types/horse';
 import { MemberActivityService } from './memberActivityService';
 import { logger } from '../utils/logger';
+import { mapHorseRow, normalizeHorseWritePayload } from '../utils/horseFilterFields';
 
 const HORSE_SELECT_FIELDS = `
-  h.id, h.name, h.sire, h.dam, h.sex, h.age, h.age_category as "ageCategory",
-  h.gait, h.status, h.horse_type as "horseType", h.jurisdiction, h.trainer,
+  h.id, h.name, h.sire as "sireId", h.dam, h.sex, h.age, h.age_category as "ageCategory",
+  h.gait, h.status, h.horse_type as "horseTypeId", h.jurisdiction as "jurisdictionIds", h.trainer as "trainerId",
   h.stable_location as "stableLocation", h.purchase_date as "purchaseDate",
   h.purchase_price as "purchasePrice", h.current_value as "currentValue",
   h.price_per_percent as "pricePerPercent", h.initial_shares as "initialShares",
@@ -42,6 +43,7 @@ const UPDATE_FIELD_MAP: Record<string, string> = {
   status: 'status',
   isNew: 'is_new',
   horseType: 'horse_type',
+  horseTypeId: 'horse_type',
   jurisdiction: 'jurisdiction',
   trainer: 'trainer',
   stableLocation: 'stable_location',
@@ -69,6 +71,10 @@ export class HorseService {
 
   constructor(pool: Pool) {
     this.pool = pool;
+  }
+
+  private mapHorseRows(rows: Record<string, unknown>[]): Horse[] {
+    return rows.map((row) => mapHorseRow(row) as unknown as Horse);
   }
 
   // Get all horses with optional filtering and pagination
@@ -219,7 +225,7 @@ export class HorseService {
       const horsesResult = await this.pool.query(horsesQuery, queryParams);
 
       return {
-        horses: horsesResult.rows,
+        horses: this.mapHorseRows(horsesResult.rows),
         total,
         page,
         limit,
@@ -241,7 +247,8 @@ export class HorseService {
       `;
       
       const result = await this.pool.query(query, [id]);
-      return result.rows[0] || null;
+      const row = result.rows[0];
+      return row ? (mapHorseRow(row) as unknown as Horse) : null;
     } catch (error) {
       logger.error('Error getting horse by ID:', error);
       throw new Error('Failed to fetch horse');
@@ -251,6 +258,7 @@ export class HorseService {
   // Create a new horse
   async createHorse(horseData: CreateHorseRequest, userId: number): Promise<Horse> {
     try {
+      const normalized = normalizeHorseWritePayload(horseData);
       const {
         name, sire, dam, sex, age, ageCategory, gait,
         status = 'active',
@@ -262,9 +270,9 @@ export class HorseService {
         sharesRemaining,
         wins = 0, places = 0, shows = 0, races = 0, earnings = 0,
         imageUrl, description, salePrice, lifetimePastPerformanceUrl, pedigreeUrl
-      } = horseData;
+      } = normalized;
 
-      const resolvedSharesRemaining = sharesRemaining ?? horseData.currentShares ?? initialShares;
+      const resolvedSharesRemaining = sharesRemaining ?? normalized.currentShares ?? initialShares;
       const currentShares = resolvedSharesRemaining;
 
       const query = `
@@ -306,11 +314,13 @@ export class HorseService {
   // Update an existing horse
   async updateHorse(id: number, horseData: UpdateHorseRequest, userId: number): Promise<Horse | null> {
     try {
+      const normalized = normalizeHorseWritePayload(horseData);
+
       const updateFields: string[] = [];
       const values: any[] = [];
       let paramIndex = 1;
 
-      Object.entries(horseData).forEach(([key, value]) => {
+      Object.entries(normalized).forEach(([key, value]) => {
         if (value === undefined) return;
         const dbKey = UPDATE_FIELD_MAP[key];
         if (!dbKey) return;
@@ -319,9 +329,9 @@ export class HorseService {
         paramIndex++;
       });
 
-      if (horseData.sharesRemaining !== undefined && horseData.currentShares === undefined) {
+      if (normalized.sharesRemaining !== undefined && normalized.currentShares === undefined) {
         updateFields.push(`current_shares = $${paramIndex}`);
-        values.push(horseData.sharesRemaining);
+        values.push(normalized.sharesRemaining);
         paramIndex++;
       }
 
@@ -393,7 +403,7 @@ export class HorseService {
       `;
       
       const result = await this.pool.query(query, [memberId]);
-      return result.rows;
+      return this.mapHorseRows(result.rows);
     } catch (error) {
       logger.error('Error getting horses by member:', error);
       throw new Error('Failed to fetch member horses');

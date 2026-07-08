@@ -3,11 +3,9 @@ import {
   HORSE_GAITS,
   HORSE_SEXES,
   HORSE_STATUSES,
-  HORSE_TYPES,
 } from '../constants/horse';
 
 export type HorseStatus = (typeof HORSE_STATUSES)[number];
-export type HorseType = (typeof HORSE_TYPES)[number];
 export type HorseAgeCategory = (typeof HORSE_AGE_CATEGORIES)[number];
 export type HorseSex = (typeof HORSE_SEXES)[number];
 export type HorseGait = (typeof HORSE_GAITS)[number];
@@ -15,16 +13,16 @@ export type HorseGait = (typeof HORSE_GAITS)[number];
 export interface Horse {
   id: number;
   name: string;
-  sire: string;
+  sireId: string;
   dam: string;
   sex: HorseSex;
   age: number;
   ageCategory: HorseAgeCategory;
   gait: HorseGait;
   status: HorseStatus;
-  horseType: HorseType;
-  jurisdiction: string[];
-  trainer?: string;
+  horseTypeId: string;
+  jurisdictionIds: string[];
+  trainerId?: string;
   stableLocation?: string;
   purchaseDate: string;
   purchasePrice: number;
@@ -49,6 +47,12 @@ export interface Horse {
   updatedBy: number;
   createdAt: string;
   updatedAt: string;
+  /** @deprecated Legacy — same value as sireId when stored as filter ID */
+  sire?: string;
+  trainer?: string;
+  jurisdiction?: string[];
+  /** @deprecated Legacy — filter option ID stored as horse_type */
+  horseType?: string;
 }
 
 export interface HorseOwnership {
@@ -105,7 +109,7 @@ export interface HorseFinancialUpdate {
 
 export interface CreateHorseRequest {
   name: string;
-  sire: string;
+  sireId: string;
   dam: string;
   sex: HorseSex;
   age: number;
@@ -113,9 +117,9 @@ export interface CreateHorseRequest {
   gait: HorseGait;
   status?: HorseStatus;
   isNew?: boolean;
-  horseType: HorseType;
-  jurisdiction: string[];
-  trainer?: string;
+  horseTypeId: string;
+  jurisdictionIds: string[];
+  trainerId?: string;
   stableLocation?: string;
   purchaseDate: string;
   purchasePrice: number;
@@ -134,11 +138,19 @@ export interface CreateHorseRequest {
   salePrice?: number;
   lifetimePastPerformanceUrl?: string;
   pedigreeUrl?: string;
+  /** @deprecated Use sireId */
+  sire?: string;
+  /** @deprecated Use trainerId */
+  trainer?: string;
+  /** @deprecated Use jurisdictionIds */
+  jurisdiction?: string[];
+  /** @deprecated Use horseTypeId */
+  horseType?: string;
 }
 
 export interface UpdateHorseRequest {
   name?: string;
-  sire?: string;
+  sireId?: string;
   dam?: string;
   sex?: HorseSex;
   age?: number;
@@ -146,9 +158,9 @@ export interface UpdateHorseRequest {
   gait?: HorseGait;
   status?: HorseStatus;
   isNew?: boolean;
-  horseType?: HorseType;
-  jurisdiction?: string[];
-  trainer?: string;
+  horseTypeId?: string;
+  jurisdictionIds?: string[];
+  trainerId?: string;
   stableLocation?: string;
   purchaseDate?: string;
   purchasePrice?: number;
@@ -167,6 +179,14 @@ export interface UpdateHorseRequest {
   salePrice?: number;
   lifetimePastPerformanceUrl?: string;
   pedigreeUrl?: string;
+  /** @deprecated Use sireId */
+  sire?: string;
+  /** @deprecated Use trainerId */
+  trainer?: string;
+  /** @deprecated Use jurisdictionIds */
+  jurisdiction?: string[];
+  /** @deprecated Use horseTypeId */
+  horseType?: string;
 }
 
 export interface HorseFilters {
