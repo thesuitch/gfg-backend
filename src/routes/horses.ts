@@ -134,7 +134,11 @@ router.get('/',
     query('trainer').optional().isString().trim(),
     query('horseType').optional().isString().trim(),
     query('priceRange').optional().isIn(['0-50', '51-100', '101-200', '200+']),
-    query('sortBy').optional().isIn(['name', 'age', 'price_per_percent', 'shares_remaining', 'earnings', 'wins', 'purchase_date']),
+    query('sortBy').optional().isIn([
+      'name', 'age', 'price_per_percent', 'shares_remaining', 'earnings', 'wins', 'purchase_date',
+      'pricePerPercent', 'sharesRemaining', 'purchaseDate',
+      'jurisdiction', 'gait', 'sex', 'sire', 'dam', 'horseType', 'horse_type',
+    ]),
     query('sortOrder').optional().isIn(['asc', 'desc']),
     query('page').optional().isInt({ min: 1 }),
     // Admin/catalog callers request up to 500 in one page (e.g. financial items horse picker).
@@ -237,11 +241,11 @@ router.post('/',
         data: horse,
         message: 'Horse created successfully'
       });
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Error in POST /horses:', error);
       res.status(500).json({
         success: false,
-        error: 'Failed to create horse'
+        error: error?.message || 'Failed to create horse'
       });
     }
   }

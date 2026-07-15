@@ -143,11 +143,18 @@ router.delete(
   async (req: Request, res: Response): Promise<void> => {
     try {
       const id = req.params.id;
-      const deleted = await transactionService.deleteCategory(id);
-      if (!deleted) {
+      const result = await transactionService.deleteCategory(id);
+      if (result === 'not_found') {
+        res.status(404).json({
+          success: false,
+          error: 'Category not found.',
+        });
+        return;
+      }
+      if (result === 'core') {
         res.status(400).json({
           success: false,
-          error: 'Category not found or is a core category and cannot be deleted.',
+          error: 'This is a core category and cannot be deleted.',
         });
         return;
       }
@@ -155,7 +162,14 @@ router.delete(
         success: true,
         message: 'Category deleted',
       });
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.code === 'CATEGORY_IN_USE') {
+        res.status(409).json({
+          success: false,
+          error: error.message,
+        });
+        return;
+      }
       logger.error('Error in DELETE /transactions/categories/:id:', error);
       res.status(500).json({
         success: false,

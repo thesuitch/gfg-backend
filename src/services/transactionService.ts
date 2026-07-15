@@ -217,20 +217,50 @@ export class TransactionService {
     throw lastErr instanceof Error ? lastErr : new Error('Failed to load category');
   }
 
-  async deleteCategory(id: string): Promise<boolean> {
+  /**
+   * Soft-typed delete outcome so the route can return clear client messages.
+   * Throws when the category is still referenced by financial items (FK RESTRICT).
+   */
+  async deleteCategory(id: string): Promise<'deleted' | 'not_found' | 'core'> {
+    const existing = await this.getCategoryById(id);
+    if (!existing) return 'not_found';
+    if (existing.isCore) return 'core';
+
     try {
       const result = await this.pool.query(
         'DELETE FROM transaction_categories WHERE id = $1 AND is_core = false RETURNING id',
         [id]
       );
-      return result.rowCount !== null && result.rowCount > 0;
+      if (result.rowCount !== null && result.rowCount > 0) return 'deleted';
+      return 'not_found';
     } catch (err: any) {
-      if (err?.code === '42703') {
-        const result = await this.pool.query(
-          'DELETE FROM transaction_categories WHERE id = $1 RETURNING id',
-          [id]
+      // Foreign key: category is assigned to horse_revenue_expense rows
+      if (err?.code === '23503') {
+        const inUse = new Error(
+          'Cannot delete this category because it is assigned to one or more financial items. Remove or reassign those items first.'
         );
-        return result.rowCount !== null && result.rowCount > 0;
+        (inUse as Error & { code?: string }).code = 'CATEGORY_IN_USE';
+        throw inUse;
+      }
+      if (err?.code === '42703') {
+        // is_core column missing — fall back to plain delete
+        try {
+          const result = await this.pool.query(
+            'DELETE FROM transaction_categories WHERE id = $1 RETURNING id',
+            [id]
+          );
+          if (result.rowCount !== null && result.rowCount > 0) return 'deleted';
+          return 'not_found';
+        } catch (fallbackErr: any) {
+          if (fallbackErr?.code === '23503') {
+            const inUse = new Error(
+              'Cannot delete this category because it is assigned to one or more financial items. Remove or reassign those items first.'
+            );
+            (inUse as Error & { code?: string }).code = 'CATEGORY_IN_USE';
+            throw inUse;
+          }
+          throw fallbackErr;
+        }
       }
       throw err;
     }

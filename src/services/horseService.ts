@@ -187,14 +187,30 @@ export class HorseService {
         }
       }
 
-      // Build ORDER BY clause
-      let orderBy = 'h.name ASC';
-      if (sortBy) {
-        const validSortFields = ['name', 'age', 'price_per_percent', 'shares_remaining', 'earnings', 'wins', 'purchase_date'];
-        if (validSortFields.includes(sortBy)) {
-          orderBy = `h.${sortBy} ${sortOrder.toUpperCase()}`;
-        }
-      }
+      // Build ORDER BY clause (accept camelCase from frontend and snake_case)
+      const sortOrderSql = sortOrder?.toUpperCase() === 'DESC' ? 'DESC' : 'ASC';
+      const sortFieldMap: Record<string, string> = {
+        name: 'h.name',
+        age: 'h.age',
+        price_per_percent: 'h.price_per_percent',
+        pricePerPercent: 'h.price_per_percent',
+        shares_remaining: 'h.shares_remaining',
+        sharesRemaining: 'h.shares_remaining',
+        earnings: 'h.earnings',
+        wins: 'h.wins',
+        purchase_date: 'h.purchase_date',
+        purchaseDate: 'h.purchase_date',
+        jurisdiction: `array_to_string(h.jurisdiction, ',')`,
+        gait: 'h.gait',
+        sex: 'h.sex',
+        sire: 'h.sire',
+        dam: 'h.dam',
+        horse_type: 'h.horse_type',
+        horseType: 'h.horse_type',
+      };
+      const orderBy = sortBy && sortFieldMap[sortBy]
+        ? `${sortFieldMap[sortBy]} ${sortOrderSql}`
+        : `h.name ${sortOrderSql}`;
 
       // Build WHERE clause
       const whereClause = whereConditions.length > 0 ? `WHERE ${whereConditions.join(' AND ')}` : '';
@@ -305,8 +321,18 @@ export class HorseService {
         throw new Error('Failed to fetch created horse');
       }
       return created;
-    } catch (error) {
+    } catch (error: any) {
       logger.error('Error creating horse:', error);
+      if (error?.code === '23514') {
+        throw new Error(
+          error?.constraint === 'horses_horse_type_check'
+            ? 'Invalid horse type. Run database migrations (012) so horse types can use Filter Settings IDs.'
+            : `Horse data failed a database check (${error.constraint || 'unknown'}).`
+        );
+      }
+      if (error instanceof Error && error.message && error.message !== 'Failed to create horse') {
+        throw error;
+      }
       throw new Error('Failed to create horse');
     }
   }

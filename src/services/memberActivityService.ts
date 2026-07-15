@@ -7,6 +7,19 @@ import {
 } from '../types/memberActivity';
 import { logger } from '../utils/logger';
 
+/** pg DATE values arrive as Date at UTC midnight; never String(date).slice(0, 10). */
+function formatPgDate(value: unknown): string {
+  if (value instanceof Date) {
+    const y = value.getUTCFullYear();
+    const m = String(value.getUTCMonth() + 1).padStart(2, '0');
+    const d = String(value.getUTCDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  const s = String(value ?? '');
+  const match = /^(\d{4}-\d{2}-\d{2})/.exec(s);
+  return match ? match[1] : s.slice(0, 10);
+}
+
 function mapRow(row: Record<string, unknown>): MemberActivity {
   return {
     id: row.id as number,
@@ -15,7 +28,7 @@ function mapRow(row: Record<string, unknown>): MemberActivity {
     activityType: row.activityType as MemberActivityType,
     horseId: row.horseId != null ? Number(row.horseId) : null,
     horseName: (row.horseName as string) ?? null,
-    activityDate: String(row.activityDate).slice(0, 10),
+    activityDate: formatPgDate(row.activityDate),
     percentage: row.percentage != null ? Number(row.percentage) : null,
     amount: Number(row.amount),
     fee: row.fee != null ? Number(row.fee) : null,

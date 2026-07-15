@@ -2,7 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { query, body, param, validationResult } from 'express-validator';
 import { Pool } from 'pg';
 import { MemberActivityService } from '../services/memberActivityService';
-import { authenticateToken, requireRole } from '../middleware/auth';
+import { authenticateToken, requireRole, isStaffUser } from '../middleware/auth';
 import { logger } from '../utils/logger';
 
 const router = Router();
@@ -30,10 +30,10 @@ const ACTIVITY_TYPES = [
   'online_service_fee', 'marketplace_processing_fee',
 ];
 
+// Staff: optional memberId filter. Members: always scoped to their own user id.
 router.get(
   '/',
   authenticateToken,
-  requireStaff,
   [
     query('memberId').optional().isInt({ min: 1 }),
     query('horseId').optional().isInt({ min: 1 }),
@@ -44,9 +44,24 @@ router.get(
   handleValidation,
   async (req: Request, res: Response): Promise<void> => {
     try {
+      if (!req.user) {
+        res.status(401).json({ success: false, error: 'Not authenticated' });
+        return;
+      }
+
+      const staff = isStaffUser(req.user);
+      if (!staff && req.user.role_name !== 'member') {
+        res.status(403).json({ success: false, error: 'Insufficient permissions' });
+        return;
+      }
+
+      const memberId = staff
+        ? (req.query.memberId ? parseInt(req.query.memberId as string, 10) : undefined)
+        : req.user.user_id;
+
       const items = await service.getActivities({
-        memberId: req.query.memberId ? parseInt(req.query.memberId as string) : undefined,
-        horseId: req.query.horseId ? parseInt(req.query.horseId as string) : undefined,
+        memberId,
+        horseId: req.query.horseId ? parseInt(req.query.horseId as string, 10) : undefined,
         activityType: req.query.activityType as any,
         dateFrom: req.query.dateFrom as string | undefined,
         dateTo: req.query.dateTo as string | undefined,
@@ -67,11 +82,11 @@ router.post(
     body('memberId').isInt({ min: 1 }),
     body('activityType').isIn(ACTIVITY_TYPES),
     body('horseId').optional({ nullable: true }).isInt({ min: 1 }),
-    body('activityDate').isISO8601(),
+    body('activityDate').matches(/^\d{4}-\d{2}-\d{2}$/).withMessage('activityDate must be YYYY-MM-DD'),
     body('percentage').optional({ nullable: true }).isFloat({ min: 0 }),
     body('amount').isFloat(),
     body('fee').optional({ nullable: true }).isFloat(),
-    body('notes').optional().isString().trim(),
+    body('notes').optional({ nullable: true, checkFalsy: true }).isString().trim(),
   ],
   handleValidation,
   async (req: Request, res: Response): Promise<void> => {
