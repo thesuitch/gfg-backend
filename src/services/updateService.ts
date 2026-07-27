@@ -133,6 +133,7 @@ export class UpdateService {
       return { sent: 0, recipients: [] };
     }
 
+    const fromEmail = process.env.FROM_EMAIL || process.env.SMTP_USER || 'noreply@goforglorystable.com';
     const horseLine = update.horseName ? `<p><strong>Horse:</strong> ${update.horseName}</p>` : '';
     const html = `
       <h2>${update.title}</h2>
@@ -141,14 +142,16 @@ export class UpdateService {
       <p style="color:#666;font-size:12px;">Go For Glory Stable — Update notification</p>
     `;
 
+    // Members go on BCC so recipients cannot see each other's addresses
     await sendEmail({
-      to: emails,
+      to: fromEmail,
+      bcc: emails,
       subject: `[GFG Stable] ${update.title}`,
       text: `${update.title}\n\n${update.description}`,
       html,
     });
 
-    logger.info(`Update ${updateId} emailed to ${emails.length} recipient(s)`);
+    logger.info(`Update ${updateId} emailed (BCC) to ${emails.length} recipient(s)`);
     return { sent: emails.length, recipients: emails };
   }
 }
