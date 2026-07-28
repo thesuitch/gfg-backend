@@ -253,6 +253,67 @@ export class HorseService {
     }
   }
 
+  private mapOwnershipRow(row: Record<string, unknown>): HorseOwnership {
+    const purchaseDate = row.purchase_date ?? row.purchaseDate;
+    const createdAt = row.created_at ?? row.createdAt;
+    const updatedAt = row.updated_at ?? row.updatedAt;
+    return {
+      id: Number(row.id),
+      horseId: Number(row.horse_id ?? row.horseId),
+      memberId: Number(row.member_id ?? row.memberId),
+      memberName: row.member_name != null ? String(row.member_name) : undefined,
+      percentage: parseFloat(String(row.percentage)),
+      purchaseDate:
+        purchaseDate instanceof Date
+          ? purchaseDate.toISOString()
+          : String(purchaseDate),
+      purchasePrice: parseFloat(String(row.purchase_price ?? row.purchasePrice ?? 0)),
+      isActive: Boolean(row.is_active ?? row.isActive),
+      createdAt:
+        createdAt instanceof Date ? createdAt.toISOString() : String(createdAt),
+      updatedAt:
+        updatedAt instanceof Date ? updatedAt.toISOString() : String(updatedAt),
+    };
+  }
+
+  async getOwnershipForHorse(horseId: number): Promise<HorseOwnership[]> {
+    const result = await this.pool.query(
+      `SELECT ho.*,
+              TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))) AS member_name
+       FROM horse_ownership ho
+       LEFT JOIN users u ON u.id = ho.member_id
+       WHERE ho.horse_id = $1 AND ho.is_active = true
+       ORDER BY ho.percentage DESC, member_name ASC`,
+      [horseId]
+    );
+    return result.rows.map((row) => this.mapOwnershipRow(row));
+  }
+
+  private async attachOwners(horses: Horse[]): Promise<Horse[]> {
+    if (horses.length === 0) return horses;
+    const ids = horses.map((h) => h.id);
+    const result = await this.pool.query(
+      `SELECT ho.*,
+              TRIM(CONCAT(COALESCE(u.first_name, ''), ' ', COALESCE(u.last_name, ''))) AS member_name
+       FROM horse_ownership ho
+       LEFT JOIN users u ON u.id = ho.member_id
+       WHERE ho.horse_id = ANY($1::int[]) AND ho.is_active = true
+       ORDER BY ho.horse_id, ho.percentage DESC`,
+      [ids]
+    );
+    const byHorse = new Map<number, HorseOwnership[]>();
+    for (const row of result.rows) {
+      const ownership = this.mapOwnershipRow(row);
+      const list = byHorse.get(ownership.horseId) ?? [];
+      list.push(ownership);
+      byHorse.set(ownership.horseId, list);
+    }
+    return horses.map((horse) => ({
+      ...horse,
+      owners: byHorse.get(horse.id) ?? [],
+    }));
+  }
+
   // Get a single horse by ID
   async getHorseById(id: number): Promise<Horse | null> {
     try {
@@ -264,7 +325,10 @@ export class HorseService {
       
       const result = await this.pool.query(query, [id]);
       const row = result.rows[0];
-      return row ? (mapHorseRow(row) as unknown as Horse) : null;
+      if (!row) return null;
+      const horse = mapHorseRow(row) as unknown as Horse;
+      const [withOwners] = await this.attachOwners([horse]);
+      return withOwners;
     } catch (error) {
       logger.error('Error getting horse by ID:', error);
       throw new Error('Failed to fetch horse');
@@ -421,15 +485,23 @@ export class HorseService {
   async getHorsesByMember(memberId: number): Promise<Horse[]> {
     try {
       const query = `
-        SELECT DISTINCT ${HORSE_SELECT_FIELDS}
+        SELECT ${HORSE_SELECT_FIELDS},
+               SUM(ho.percentage)::float AS "memberOwnershipPercentage"
         FROM horses h
         INNER JOIN horse_ownership ho ON h.id = ho.horse_id
         WHERE ho.member_id = $1 AND ho.is_active = true
+        GROUP BY h.id
         ORDER BY h.name
       `;
       
       const result = await this.pool.query(query, [memberId]);
-      return this.mapHorseRows(result.rows);
+      const horses = this.mapHorseRows(result.rows).map((horse, index) => ({
+        ...horse,
+        memberOwnershipPercentage: parseFloat(
+          String(result.rows[index].memberOwnershipPercentage ?? 0)
+        ),
+      }));
+      return this.attachOwners(horses);
     } catch (error) {
       logger.error('Error getting horses by member:', error);
       throw new Error('Failed to fetch member horses');
@@ -444,7 +516,7 @@ export class HorseService {
       await client.query('BEGIN');
 
       // Check if horse exists and has enough shares
-      const horseQuery = 'SELECT shares_remaining, price_per_percent FROM horses WHERE id = $1';
+      const horseQuery = 'SELECT shares_remaining, price_per_percent FROM horses WHERE id = $1 FOR UPDATE';
       const horseResult = await client.query(horseQuery, [horseId]);
       
       if (horseResult.rows.length === 0) {
@@ -456,18 +528,40 @@ export class HorseService {
         throw new Error('Not enough shares available');
       }
 
-      // Create ownership record
-      const ownershipQuery = `
-        INSERT INTO horse_ownership (
-          horse_id, member_id, percentage, purchase_date, purchase_price, is_active
-        ) VALUES ($1, $2, $3, CURRENT_TIMESTAMP, $4, true)
-        RETURNING *
-      `;
-      
       const totalPrice = purchaseData.percentage * horse.price_per_percent;
-      const ownershipResult = await client.query(ownershipQuery, [
-        horseId, purchaseData.memberId, purchaseData.percentage, totalPrice
-      ]);
+
+      const existingOwnership = await client.query(
+        `SELECT id, percentage, purchase_price
+         FROM horse_ownership
+         WHERE horse_id = $1 AND member_id = $2 AND is_active = true
+         FOR UPDATE`,
+        [horseId, purchaseData.memberId]
+      );
+
+      let ownershipRow: Record<string, unknown>;
+
+      if (existingOwnership.rows.length > 0) {
+        const current = existingOwnership.rows[0];
+        const ownershipResult = await client.query(
+          `UPDATE horse_ownership
+           SET percentage = percentage + $1,
+               purchase_price = purchase_price + $2,
+               updated_at = CURRENT_TIMESTAMP
+           WHERE id = $3
+           RETURNING *`,
+          [purchaseData.percentage, totalPrice, current.id]
+        );
+        ownershipRow = ownershipResult.rows[0];
+      } else {
+        const ownershipResult = await client.query(
+          `INSERT INTO horse_ownership (
+            horse_id, member_id, percentage, purchase_date, purchase_price, is_active
+          ) VALUES ($1, $2, $3, CURRENT_TIMESTAMP, $4, true)
+          RETURNING *`,
+          [horseId, purchaseData.memberId, purchaseData.percentage, totalPrice]
+        );
+        ownershipRow = ownershipResult.rows[0];
+      }
 
       // Create transaction record
       const transactionQuery = `
@@ -497,7 +591,7 @@ export class HorseService {
       }
 
       await client.query('COMMIT');
-      return ownershipResult.rows[0];
+      return this.mapOwnershipRow(ownershipRow);
     } catch (error) {
       await client.query('ROLLBACK');
       logger.error('Error purchasing shares:', error);

@@ -10,6 +10,19 @@ export type HorseAgeCategory = (typeof HORSE_AGE_CATEGORIES)[number];
 export type HorseSex = (typeof HORSE_SEXES)[number];
 export type HorseGait = (typeof HORSE_GAITS)[number];
 
+export interface HorseOwnership {
+  id: number;
+  horseId: number;
+  memberId: number;
+  memberName?: string;
+  percentage: number;
+  purchaseDate: string;
+  purchasePrice: number;
+  isActive: boolean;
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface Horse {
   id: number;
   name: string;
@@ -47,24 +60,16 @@ export interface Horse {
   updatedBy: number;
   createdAt: string;
   updatedAt: string;
+  /** Present when loaded with ownership enrichment */
+  owners?: HorseOwnership[];
+  /** Member's ownership % when loaded via getHorsesByMember */
+  memberOwnershipPercentage?: number;
   /** @deprecated Legacy — same value as sireId when stored as filter ID */
   sire?: string;
   trainer?: string;
   jurisdiction?: string[];
   /** @deprecated Legacy — filter option ID stored as horse_type */
   horseType?: string;
-}
-
-export interface HorseOwnership {
-  id: number;
-  horseId: number;
-  memberId: number;
-  percentage: number;
-  purchaseDate: string;
-  purchasePrice: number;
-  isActive: boolean;
-  createdAt: string;
-  updatedAt: string;
 }
 
 export interface HorseTransaction {

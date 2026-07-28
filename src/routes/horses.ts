@@ -1,7 +1,7 @@
 import { Router, Request, Response, NextFunction } from 'express';
 import { body, param, query, validationResult } from 'express-validator';
 import { HorseService } from '../services/horseService';
-import { authenticateToken } from '../middleware/auth';
+import { authenticateToken, canAccessMemberResource } from '../middleware/auth';
 import { logger } from '../utils/logger';
 import { Pool } from 'pg';
 import {
@@ -188,6 +188,78 @@ router.get('/',
   }
 );
 
+// Get horses owned by a specific member (must be before /:id)
+router.get('/member/:memberId',
+  authenticateToken,
+  [
+    param('memberId').isInt({ min: 1 }).withMessage('Invalid member ID')
+  ],
+  handleValidationErrors,
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const memberId = parseInt(req.params.memberId, 10);
+      if (!canAccessMemberResource(req.user, memberId)) {
+        res.status(403).json({ success: false, error: 'Insufficient permissions' });
+        return;
+      }
+      const horses = await horseService.getHorsesByMember(memberId);
+      
+      res.json({
+        success: true,
+        data: horses
+      });
+    } catch (error) {
+      logger.error('Error in GET /horses/member/:memberId:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to fetch member horses'
+      });
+    }
+  }
+);
+
+// Get horse statistics (must be before /:id)
+router.get('/stats/overview',
+  authenticateToken,
+  async (_req: Request, res: Response): Promise<void> => {
+    try {
+      const stats = await horseService.getHorseStatistics();
+      res.json({
+        success: true,
+        data: stats
+      });
+    } catch (error) {
+      logger.error('Error in GET /horses/stats/overview:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to fetch horse statistics'
+      });
+    }
+  }
+);
+
+// Get ownership records for a horse (must be before /:id)
+router.get('/:id/ownership',
+  authenticateToken,
+  [
+    param('id').isInt({ min: 1 }).withMessage('Invalid horse ID')
+  ],
+  handleValidationErrors,
+  async (req: Request, res: Response): Promise<void> => {
+    try {
+      const horseId = parseInt(req.params.id, 10);
+      const owners = await horseService.getOwnershipForHorse(horseId);
+      res.json({ success: true, data: owners });
+    } catch (error) {
+      logger.error('Error in GET /horses/:id/ownership:', error);
+      res.status(500).json({
+        success: false,
+        error: 'Failed to fetch ownership'
+      });
+    }
+  }
+);
+
 // Get a single horse by ID
 router.get('/:id',
   authenticateToken,
@@ -366,32 +438,6 @@ router.delete('/:id',
   }
 );
 
-// Get horses owned by a specific member
-router.get('/member/:memberId',
-  authenticateToken,
-  [
-    param('memberId').isInt({ min: 1 }).withMessage('Invalid member ID')
-  ],
-  handleValidationErrors,
-  async (req: Request, res: Response): Promise<void> => {
-    try {
-      const memberId = parseInt(req.params.memberId);
-      const horses = await horseService.getHorsesByMember(memberId);
-      
-      res.json({
-        success: true,
-        data: horses
-      });
-    } catch (error) {
-      logger.error('Error in GET /horses/member/:memberId:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Failed to fetch member horses'
-      });
-    }
-  }
-);
-
 // Purchase shares in a horse
 router.post('/:id/purchase',
   authenticateToken,
@@ -409,6 +455,11 @@ router.post('/:id/purchase',
         res.status(401).json({ error: 'User not authenticated' });
         return;
       }
+      const memberId = Number(req.body.memberId);
+      if (!canAccessMemberResource(req.user, memberId)) {
+        res.status(403).json({ success: false, error: 'Insufficient permissions' });
+        return;
+      }
       const ownership = await horseService.purchaseShares(horseId, req.body, userId);
       
       res.status(201).json({
@@ -421,27 +472,6 @@ router.post('/:id/purchase',
       res.status(500).json({
         success: false,
         error: error instanceof Error ? error.message : 'Failed to purchase shares'
-      });
-    }
-  }
-);
-
-// Get horse statistics
-router.get('/stats/overview',
-  authenticateToken,
-  async (req: Request, res: Response): Promise<void> => {
-    try {
-      const stats = await horseService.getHorseStatistics();
-      
-      res.json({
-        success: true,
-        data: stats
-      });
-    } catch (error) {
-      logger.error('Error in GET /horses/stats/overview:', error);
-      res.status(500).json({
-        success: false,
-        error: 'Failed to fetch horse statistics'
       });
     }
   }
