@@ -12,6 +12,7 @@ import { initializeTransactionRoutes } from './routes/transactions';
 import { initializeMemberActivityRoutes } from './routes/memberActivities';
 import { initializeUpdateRoutes } from './routes/updates';
 import { initializeFilterRoutes } from './routes/filters';
+import { initializeMarketplaceRoutes } from './routes/marketplace';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from './utils/logger';
 import { createSSLConfig, createHTTPSOptions, redirectToHTTPS } from './utils/ssl';
@@ -32,12 +33,30 @@ app.use(cors({
   credentials: true
 }));
 
-// Rate limiting
+// Rate limiting — SPA pages fire many parallel React Query calls; 100/15min is too low.
+// Dev: effectively off so local testing isn't blocked. Prod: generous global + stricter auth.
+const isDev = process.env.NODE_ENV !== 'production';
+
 const limiter = rateLimit({
-  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000'), // 15 minutes
-  max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS || '100'), // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.'
+  windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS || '900000', 10), // 15 minutes
+  max: parseInt(
+    process.env.RATE_LIMIT_MAX_REQUESTS || (isDev ? '10000' : '1000'),
+    10
+  ),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'RATE_LIMIT', message: 'Too many requests from this IP, please try again later.' },
+  skip: (req) => req.path === '/health',
 });
+
+const authLimiter = rateLimit({
+  windowMs: parseInt(process.env.AUTH_RATE_LIMIT_WINDOW_MS || '900000', 10),
+  max: parseInt(process.env.AUTH_RATE_LIMIT_MAX_REQUESTS || (isDev ? '1000' : '50'), 10),
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, error: 'RATE_LIMIT', message: 'Too many auth attempts, please try again later.' },
+});
+
 app.use(limiter);
 
 // Body parsing middleware
@@ -62,13 +81,14 @@ app.get('/health', (req, res) => {
 // Database connection is already initialized in the import
 
 // API routes
-app.use('/api/auth', authRoutes);
+app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/tax-documents', taxDocumentRoutes);
 app.use('/api/horses', initializeHorseRoutes(pool));
 app.use('/api/transactions', initializeTransactionRoutes(pool));
 app.use('/api/member-activities', initializeMemberActivityRoutes(pool));
 app.use('/api/updates', initializeUpdateRoutes(pool));
 app.use('/api/filters', initializeFilterRoutes(pool));
+app.use('/api/marketplace', initializeMarketplaceRoutes(pool));
 
 // 404 handler
 app.use('*', (req, res) => {
