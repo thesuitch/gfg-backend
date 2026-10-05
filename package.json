@@ -15,6 +15,7 @@
     "seed:categories": "ts-node -r dotenv/config src/database/seedCategoriesOnly.ts",
     "setup": "setup-postgres.bat",
     "fix-permissions": "fix-permissions.bat",
+    "test": "node -r ts-node/register --test src/services/__tests__/statementAllocation.test.ts",
     "deploy": "npm run build && npm run migrate && npm run start:prod",
     "test-ssl": "node -e \"const https = require('https'); const options = { hostname: process.env.SSL_TEST_HOST || 'localhost', port: process.env.PORT || 3001, path: '/api/health', method: 'GET', rejectUnauthorized: false }; const req = https.request(options, (res) => { console.log('SSL Test Status:', res.statusCode); res.on('data', (d) => console.log('Response:', d.toString())); }); req.on('error', (e) => console.error('SSL Test Error:', e.message)); req.end();\""
   },

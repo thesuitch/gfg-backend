@@ -13,6 +13,7 @@ import { initializeMemberActivityRoutes } from './routes/memberActivities';
 import { initializeUpdateRoutes } from './routes/updates';
 import { initializeFilterRoutes } from './routes/filters';
 import { initializeMarketplaceRoutes } from './routes/marketplace';
+import { initializeStatementRoutes } from './routes/statements';
 import { errorHandler } from './middleware/errorHandler';
 import { logger } from './utils/logger';
 import { createSSLConfig, createHTTPSOptions, redirectToHTTPS } from './utils/ssl';
@@ -89,6 +90,7 @@ app.use('/api/member-activities', initializeMemberActivityRoutes(pool));
 app.use('/api/updates', initializeUpdateRoutes(pool));
 app.use('/api/filters', initializeFilterRoutes(pool));
 app.use('/api/marketplace', initializeMarketplaceRoutes(pool));
+app.use('/api/statements', initializeStatementRoutes(pool));
 
 // 404 handler
 app.use('*', (req, res) => {
